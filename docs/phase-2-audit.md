@@ -3,7 +3,7 @@
 **Date:** 2026-10-23
 **Scope:** commits `78a5d6b`..`de6b1f8` (typed navigation, store split, DI,
 tests split, CI, catalogue lockdown SQL, tab-init crash fix), reviewed against
-the Phase 1 audit and the live hosted project.
+the Phase 1 audit and the live hosted project. **Fixes:** `9c5dcc4`.
 **Verdict:** Phase 2 architecture is sound and the database lockdown is safe to
 apply, after the two scope/behaviour fixes below. Phase 3 can start once OA-1
 and OA-2 are applied by someone with Supabase dashboard access.

@@ -13,7 +13,7 @@
 | 0 | git history + baseline | ✅ `a651be8` |
 | 1 | Defects & safety: rotation/process-death survival, offline-first cache, bag journal, atomic orders, saveable UI state | ✅ code complete & audited; **2 deploy actions open** |
 | 1-audit | Independent audit + fixes (`docs/phase-1-audit.md`) | ✅ `590cd3f` — 24 passed / 1 skipped, verified |
-| **2** | **Architecture: type-safe navigation, store split (Catalog/Bag/Checkout/Newsletter), DI graph, CI pipeline** | ✅ `6840046` + `37937a0` + `76f91af` ; docs+SQL `78a5d6b` ; crash fix `ef321c6` ; audit fixes `docs/phase-2-audit.md` |
+| **2** | **Architecture: type-safe navigation, store split (Catalog/Bag/Checkout/Newsletter), DI graph, CI pipeline** | ✅ `6840046` + `37937a0` + `76f91af` ; docs+SQL `78a5d6b` ; crash fix `ef321c6` ; audit fixes `9c5dcc4` (`docs/phase-2-audit.md`) |
 | 3 | Design elevation: Uniqlo-inspired redesign (clean white, minimal type, red accent, LifeWear voice), dark theme, brand fonts, shared-element card→PDP, a11y | ⏳ |
 | 4 | Commerce: wishlist, order history (auth), review submission, stock validation, payments decision | ⏳ |
 | 5 | Release engineering: signed builds, R8 map, icons/splash, deep links (incl. iOS shell) | ⏳ |
@@ -75,13 +75,13 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
 | 2026-10-23 | `ef321c6` | reproduce user crash on emulator-5554 pre-fix | **6/6 cold launches crashed** (`NoWhenBranchMatchedException`, `BottomBarKt.iconFor` line 59) — deterministic, not stale artifacts; runtime probe + javap proved `Destination.tabs[0]` was `null` (landmine 8) |
 | 2026-10-23 | `ef321c6` | emulator-5554 post-fix: 8/8 cold launches | 0 crashes; then interaction smoke: Discover→Bag (journal rehydrated)→Profile→PDP→checkout overlay→back — all render, single PID, 0 exceptions |
 | 2026-10-23 | `ef321c6` | full matrix (assembleDebug / unit / lintDebug / iOS target) | green — 4 suites incl. Router 10 pass; lint 0 errors / 12 warnings (OA-3) |
-| 2026-10-23 | phase-2-audit | unit tests (fresh `--rerun-tasks`) | **40 passed / 1 skipped / 0 failures** (41: Router 10, RootStore 14, Bag 7, Catalog 3, LocalPersistence 6, live skipped) |
-| 2026-10-23 | phase-2-audit | assembleDebug / lintDebug / iOS target | pass / 0 errors, 12 warnings (OA-3 unchanged) / pass |
-| 2026-10-23 | phase-2-audit | lockdown re-run on **full** `schema.sql` + Supabase-style grants (PG 16.15) | 23 catalogue write policies on nine tables **+ public `product-images` upload policy** dropped; idempotent; anon SELECT retained; anon catalogue writes denied; guest orders/order_items/newsletter and `place_order` still work |
-| 2026-10-23 | phase-2-audit | system back during/after checkout | regression fixed + 3 tests: submitting cannot pop; back abandons the session; back after success closes it |
+| 2026-10-23 | `9c5dcc4` | unit tests (fresh `--rerun-tasks`) | **40 passed / 1 skipped / 0 failures** (41: Router 10, RootStore 14, Bag 7, Catalog 3, LocalPersistence 6, live skipped) |
+| 2026-10-23 | `9c5dcc4` | assembleDebug / lintDebug / iOS target | pass / 0 errors, 12 warnings (OA-3 unchanged) / pass |
+| 2026-10-23 | `9c5dcc4` | lockdown re-run on **full** `schema.sql` + Supabase-style grants (PG 16.15) | 23 catalogue write policies on nine tables **+ public `product-images` upload policy** dropped; idempotent; anon SELECT retained; anon catalogue writes denied; guest orders/order_items/newsletter and `place_order` still work |
+| 2026-10-23 | `9c5dcc4` | system back during/after checkout | regression fixed + 3 tests: submitting cannot pop; back abandons the session; back after success closes it |
 
 > The earlier `8/8` lockdown row was a reduced eight-table fixture. The
-> authoritative full-schema result is the `phase-2-audit` row above: the real
+> authoritative full-schema result is the `9c5dcc4` row above: the real
 > `schema.sql` has **23** write policies across **nine** catalogue tables,
 > plus the public storage upload policy.
 
