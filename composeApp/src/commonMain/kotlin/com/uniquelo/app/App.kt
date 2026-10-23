@@ -1,6 +1,14 @@
 package com.uniquelo.app
 
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +18,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
@@ -22,6 +31,8 @@ import com.uniquelo.app.data.platformHttpEngine
 import com.uniquelo.app.navigation.Destination
 import com.uniquelo.app.state.AppStoreViewModel
 import com.uniquelo.app.state.RootStore
+import com.uniquelo.app.ui.LocalAnimatedVisibilityScope
+import com.uniquelo.app.ui.LocalSharedTransitionScope
 import com.uniquelo.app.ui.PlatformBackHandler
 import com.uniquelo.app.ui.components.UniqueLoBottomBar
 import com.uniquelo.app.ui.screens.BagScreen
@@ -32,16 +43,16 @@ import com.uniquelo.app.ui.screens.ProfileScreen
 import com.uniquelo.app.ui.theme.Palette
 import com.uniquelo.app.ui.theme.UniqueLoTheme
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun App() {
-    UniqueLoTheme {
+    // The ViewModel is resolved before the theme so a persisted appearance
+    // preference is available on the first frame (no light→dark flash).
+    val store: RootStore = viewModel { AppStoreViewModel() }.store
+
+    UniqueLoTheme(themeMode = store.theme.mode) {
         InstallImageLoader()
 
-        // The root store is owned by the ViewModelStoreOwner (activity on
-        // Android, the view controller on iOS), not by the composition:
-        // rotating the device keeps state that lives in the stores, and
-        // `onCleared` closes the shared scope (docs/CONVENTIONS.md Rule 3).
-        val store: RootStore = viewModel { AppStoreViewModel() }.store
         val catalog = store.catalog
         val bag = store.bag
         val router = store.router
@@ -68,77 +79,119 @@ fun App() {
                 .background(Palette.Bone)
                 .windowInsetsPadding(WindowInsets.safeDrawing),
         ) {
-            when (destination) {
-                Destination.Checkout -> saveableStateHolder.SaveableStateProvider("checkout") {
-                    CheckoutScreen(
-                        checkout = store.checkout,
-                        bag = bag,
-                        onSubmit = store::submitOrder,
-                        onBack = { store.closeCheckout() },
-                        onFinish = { store.finishOrder() },
-                    )
-                }
-
-                is Destination.Product -> {
-                    // Shell resolves the slug against the live catalogue; a
-                    // refresh that removes the product closes the PDP (same
-                    // net effect as the pre-router `selectedProduct = null`).
-                    val product = catalog.products.firstOrNull { it.slug == destination.slug }
-                    if (product != null) {
-                        saveableStateHolder.SaveableStateProvider("pdp/${product.slug}") {
-                            ProductScreen(
-                                product = product,
-                                bag = bag,
-                                onBack = { router.pop() },
-                                onOpenBag = { router.selectTab(Destination.Bag) },
+            SharedTransitionLayout {
+                val sharedTransition = this
+                AnimatedContent(
+                    targetState = destination,
+                    transitionSpec = {
+                        val enteringPdp = targetState is Destination.Product
+                        val leavingPdp = initialState is Destination.Product
+                        if (enteringPdp || leavingPdp) {
+                            (
+                                slideInHorizontally(tween(320)) { it / 8 } +
+                                    fadeIn(tween(220))
+                                ).togetherWith(
+                                slideOutHorizontally(tween(320)) { -it / 12 } +
+                                    fadeOut(tween(160)),
                             )
+                        } else {
+                            fadeIn(tween(180)).togetherWith(fadeOut(tween(120)))
                         }
-                    } else {
-                        LaunchedEffect(destination.slug) { router.pop() }
+                    },
+                    label = "destination",
+                ) { target ->
+                    CompositionLocalProvider(
+                        LocalSharedTransitionScope provides sharedTransition,
+                        LocalAnimatedVisibilityScope provides this,
+                    ) {
+                        DestinationHost(
+                            target = target,
+                            store = store,
+                            saveableStateHolder = saveableStateHolder,
+                            discoverListState = discoverListState,
+                        )
                     }
-                }
-
-                else -> Column(modifier = Modifier.fillMaxSize()) {
-                    Crossfade(
-                        targetState = destination,
-                        modifier = Modifier.weight(1f),
-                        label = "tab",
-                    ) { tab ->
-                        // State (scroll, selections, forms) is preserved across
-                        // tab switches and device rotation via the saveable
-                        // state holder keyed by destination.
-                        saveableStateHolder.SaveableStateProvider(tab.label ?: tab.toString()) {
-                            when (tab) {
-                                Destination.Discover -> DiscoverScreen(
-                                    catalog = catalog,
-                                    newsletter = store.newsletter,
-                                    bagCount = bag.bagCount,
-                                    onOpenBag = { router.selectTab(Destination.Bag) },
-                                    onOpenProduct = { store.openProduct(it) },
-                                    listState = discoverListState,
-                                )
-
-                                Destination.Bag -> BagScreen(
-                                    bag = bag,
-                                    onCheckout = { store.requestCheckout() },
-                                    onBrowse = { store.selectTab(Destination.Discover) },
-                                )
-
-                                Destination.Profile -> ProfileScreen(
-                                    onBrowse = { store.selectTab(Destination.Discover) },
-                                )
-
-                                else -> Unit // overlays never reach this branch
-                            }
-                        }
-                    }
-                    UniqueLoBottomBar(
-                        current = destination,
-                        bagCount = bag.bagCount,
-                        onSelect = { store.selectTab(it) },
-                    )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DestinationHost(
+    target: Destination,
+    store: RootStore,
+    saveableStateHolder: androidx.compose.runtime.saveable.SaveableStateHolder,
+    discoverListState: androidx.compose.foundation.lazy.LazyListState,
+) {
+    val catalog = store.catalog
+    val bag = store.bag
+    val router = store.router
+
+    when (target) {
+        Destination.Checkout -> saveableStateHolder.SaveableStateProvider("checkout") {
+            CheckoutScreen(
+                checkout = store.checkout,
+                bag = bag,
+                onSubmit = store::submitOrder,
+                onBack = { store.closeCheckout() },
+                onFinish = { store.finishOrder() },
+            )
+        }
+
+        is Destination.Product -> {
+            // Shell resolves the slug against the live catalogue; a refresh
+            // that removes the product closes the PDP (same net effect as the
+            // pre-router `selectedProduct = null`).
+            val product = catalog.products.firstOrNull { it.slug == target.slug }
+            if (product != null) {
+                saveableStateHolder.SaveableStateProvider("pdp/${product.slug}") {
+                    ProductScreen(
+                        product = product,
+                        bag = bag,
+                        onBack = { router.pop() },
+                        onOpenBag = { router.selectTab(Destination.Bag) },
+                    )
+                }
+            } else {
+                LaunchedEffect(target.slug) { router.pop() }
+            }
+        }
+
+        else -> Column(modifier = Modifier.fillMaxSize()) {
+            // State (scroll, selections, forms) is preserved across tab
+            // switches and device rotation via the saveable state holder keyed
+            // by destination.
+            Box(modifier = Modifier.weight(1f)) {
+                saveableStateHolder.SaveableStateProvider(target.label ?: target.toString()) {
+                    when (target) {
+                        Destination.Discover -> DiscoverScreen(
+                            catalog = catalog,
+                            newsletter = store.newsletter,
+                            bagCount = bag.bagCount,
+                            onOpenBag = { router.selectTab(Destination.Bag) },
+                            onOpenProduct = { store.openProduct(it) },
+                            listState = discoverListState,
+                        )
+
+                        Destination.Bag -> BagScreen(
+                            bag = bag,
+                            onCheckout = { store.requestCheckout() },
+                            onBrowse = { store.selectTab(Destination.Discover) },
+                        )
+
+                        Destination.Profile -> ProfileScreen(
+                            theme = store.theme,
+                            onBrowse = { store.selectTab(Destination.Discover) },
+                        )
+                    }
+                }
+            }
+            UniqueLoBottomBar(
+                current = target,
+                bagCount = bag.bagCount,
+                onSelect = { store.selectTab(it) },
+            )
         }
     }
 }

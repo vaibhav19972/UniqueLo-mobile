@@ -20,6 +20,7 @@ class RootStore(
     val checkout: CheckoutStore,
     val newsletter: NewsletterStore,
     val router: Router,
+    val theme: ThemeStore,
     private val scope: CoroutineScope,
 ) {
     init {

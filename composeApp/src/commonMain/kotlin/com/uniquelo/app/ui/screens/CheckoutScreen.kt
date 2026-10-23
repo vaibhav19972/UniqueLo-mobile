@@ -34,7 +34,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -102,9 +107,9 @@ private fun CheckoutFormScreen(
         ) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .border(1.dp, Palette.Line, CircleShape)
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .border(1.dp, Palette.ControlLine, RoundedCornerShape(2.dp))
                     .semantics { contentDescription = "Back" }
                     .clickable(enabled = !submitting, onClick = onBack),
                 contentAlignment = Alignment.Center,
@@ -117,6 +122,7 @@ private fun CheckoutFormScreen(
                     text = "Checkout",
                     style = MaterialTheme.typography.headlineSmall,
                     color = Palette.Ink,
+                    modifier = Modifier.semantics { heading() },
                 )
                 Text(
                     text = "SECURE RESERVATION",
@@ -215,6 +221,7 @@ private fun CheckoutFormScreen(
                     text = error,
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.Rust,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
 
@@ -253,8 +260,9 @@ private fun CheckoutFormScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(if (submitting) Palette.Sand else Palette.Lime)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(if (submitting) Palette.Sand else Palette.Rust)
+                    .semantics { role = Role.Button }
                     .clickable(enabled = !submitting) {
                         attempted = true
                         formError = null
@@ -283,21 +291,21 @@ private fun CheckoutFormScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
-                            color = Palette.Ink,
+                            color = Palette.OnAccent,
                             strokeWidth = 2.dp,
                         )
                         Spacer(Modifier.width(10.dp))
                         Text(
                             text = "RESERVING…",
                             style = MaterialTheme.typography.labelLarge,
-                            color = Palette.Ink,
+                            color = Palette.OnAccent,
                         )
                     }
                 } else {
                     Text(
                         text = "PLACE RESERVATION · ${formatCents(bag.subtotalCents)}",
                         style = MaterialTheme.typography.labelLarge,
-                        color = Palette.Ink,
+                        color = Palette.OnAccent,
                     )
                 }
             }
@@ -310,8 +318,8 @@ private fun OrderSummary(bag: BagStore) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
-            .border(1.dp, Palette.Line, RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(2.dp))
+            .border(1.dp, Palette.Line, RoundedCornerShape(2.dp))
             .background(Palette.Paper)
             .padding(16.dp),
     ) {
@@ -409,24 +417,26 @@ private fun LabelledField(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(38.dp),
+                .height(48.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
             if (value.isEmpty()) {
                 Text(
                     text = placeholder,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Palette.Muted.copy(alpha = 0.6f),
+                    color = Palette.Muted,
                 )
             }
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = label },
                 singleLine = true,
                 enabled = enabled,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = Palette.Ink),
-                cursorBrush = SolidColor(Palette.Ink),
+                cursorBrush = SolidColor(Palette.Rust),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = keyboardType,
                     imeAction = ImeAction.Next,
@@ -434,7 +444,7 @@ private fun LabelledField(
             )
         }
         HorizontalDivider(
-            color = if (invalid) Palette.Rust else Palette.Line,
+            color = if (invalid) Palette.Rust else Palette.ControlLine,
         )
     }
 }
@@ -456,10 +466,10 @@ private fun ConfirmationScreen(
             modifier = Modifier
                 .size(86.dp)
                 .clip(CircleShape)
-                .background(Palette.Lime),
+                .background(Palette.Rust),
             contentAlignment = Alignment.Center,
         ) {
-            UiIcon(UiIcon.Check, modifier = Modifier.size(36.dp), tint = Palette.Ink)
+            UiIcon(UiIcon.Check, modifier = Modifier.size(36.dp), tint = Palette.OnAccent)
         }
         Spacer(Modifier.height(24.dp))
         Text(
@@ -467,6 +477,7 @@ private fun ConfirmationScreen(
             style = MaterialTheme.typography.displayLarge,
             color = Palette.Ink,
             textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { heading() },
         )
         Spacer(Modifier.height(10.dp))
         Text(
@@ -479,8 +490,8 @@ private fun ConfirmationScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(4.dp))
-                .border(1.dp, Palette.Line, RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(2.dp))
+                .border(1.dp, Palette.Line, RoundedCornerShape(2.dp))
                 .background(Palette.Paper)
                 .padding(18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -509,15 +520,16 @@ private fun ConfirmationScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(Palette.Ink)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Palette.Rust)
+                .semantics { role = Role.Button }
                 .clickable { onFinish() },
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = "CONTINUE EXPLORING",
                 style = MaterialTheme.typography.labelLarge,
-                color = Palette.Lime,
+                color = Palette.OnAccent,
             )
         }
     }

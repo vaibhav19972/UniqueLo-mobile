@@ -3,12 +3,14 @@ package com.uniquelo.app
 import com.uniquelo.app.data.CatalogSnapshot
 import com.uniquelo.app.data.OkioBagPersistence
 import com.uniquelo.app.data.OkioSnapshotCache
+import com.uniquelo.app.data.OkioThemePersistence
 import com.uniquelo.app.data.SavedLine
 import com.uniquelo.app.model.Category
 import com.uniquelo.app.model.Collection
 import com.uniquelo.app.model.Motif
 import com.uniquelo.app.model.Product
 import com.uniquelo.app.model.Review
+import com.uniquelo.app.model.ThemeMode
 import com.uniquelo.app.model.ThemeTokens
 import com.uniquelo.app.model.Universe
 import com.uniquelo.app.model.Variant
@@ -87,6 +89,33 @@ class LocalPersistenceTest {
 
         assertTrue(fileSystem.exists(dir))
         assertNull(cache.load())
+    }
+
+    @Test
+    fun themePreferenceRoundTripsAndOverwritesAtomically() {
+        val dir = "/app/private".toPath()
+        val theme = OkioThemePersistence(dir, fileSystem)
+
+        assertNull(theme.load())
+        theme.save(ThemeMode.Dark)
+        assertEquals(ThemeMode.Dark, theme.load())
+
+        theme.save(ThemeMode.Light)
+        assertEquals(ThemeMode.Light, theme.load())
+
+        // A fresh instance (next launch) reads the same file.
+        assertEquals(ThemeMode.Light, OkioThemePersistence(dir, fileSystem).load())
+        assertTrue(!fileSystem.exists("/app/private/theme.txt.tmp".toPath()))
+    }
+
+    @Test
+    fun corruptThemePreferenceFallsBackToSystem() {
+        val dir = "/app/private".toPath()
+        val theme = OkioThemePersistence(dir, fileSystem)
+        val file = "/app/private/theme.txt".toPath()
+        fileSystem.sink(file).buffer().use { it.writeUtf8("sepia") }
+
+        assertNull(theme.load())
     }
 
     @Test

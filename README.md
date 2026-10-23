@@ -11,8 +11,10 @@ schema described below.
 
 ## Project status (audited 2026-10-23)
 
-Phase 1 (offline-first state, atomic order SQL) and Phase 2 (typed navigation,
-store split, DI, CI, catalogue lockdown SQL) are code-complete and audited.
+Phase 1 (offline-first state, atomic order SQL), Phase 2 (typed navigation,
+store split, DI, CI, catalogue lockdown SQL) and Phase 3 (Uniqlo-inspired
+design system, dark theme, Satoshi typography, shared-element card→PDP,
+accessibility pass) are code-complete and verified.
 
 The backend is **shared with the web project** at
 `/Users/apple/MySpace/UniqueLo`: its `supabase/schema.sql`, migrations and seeds
@@ -24,10 +26,13 @@ Deployment state:
 
 - **OA-1 closed** — `place_order` v2 and `get_order_details` are applied and
   live-verified on the hosted project; checkout uses the atomic RPC.
-- **OA-2 interim (D-13)** — the full lockdown is deliberately paused because
-  the web Admin Studio still writes with the publishable key. The interim
-  six-table revoke is committed but **not yet applied**; the core catalogue is
-  still publicly writable. See [RLS warning](#rls-warning).
+- **OA-2 / OA-5 closed (D-15)** — the authenticated-admin lockdown
+  (`20260104000000_lockdown_auth_admin.sql`) is live: `anon` is read-only on all
+  nine catalogue tables and storage uploads require `authenticated`. The earlier
+  interim/no-auth drafts remain as replay history.
+- **OA-6 open** — `authenticated` currently means *any* signed-in user, not a
+  verified admin. Gate catalogue/storage policies by an admin claim before
+  public sign-up ships. See [RLS warning](#rls-warning).
 
 Evidence: [`phase-1-audit.md`](docs/phase-1-audit.md),
 [`phase-2-audit.md`](docs/phase-2-audit.md). The shared source of truth is
@@ -48,6 +53,24 @@ network is down). The app shows a branded loading state only when there is no
 cache at all, and a retry card when the project is unreachable and nothing is
 available to paint. There is no payment step.
 
+## Design system (Phase 3)
+
+The shell is Uniqlo-inspired, not a Uniqlo clone: **paper and ink surfaces, one
+brand-red accent, square geometry, Satoshi type, and photography-first product
+cards**. Universe colours (`universes.theme_tokens`) tint universe cards and
+generated artwork only; chrome stays neutral.
+
+| Piece | Implementation |
+|---|---|
+| Colour | `Palette` is a composable accessor over `LocalUniqueLoColors`; `Ink`/`Paper` invert in dark mode. Fixed image overlays use `ImageScrim`/`OnImage`; the brand-black newsletter uses `InverseSurface`/`OnInverse`/`InverseAccent`. Red is `#D5001C` light / `#FF4D57` dark, contrast-checked with `OnAccent`. |
+| Type | Self-hosted **Satoshi** OTF (Light/Regular/Medium/Bold/Black) through Compose Resources. ITF Free Font License: `docs/fonts/SATOSHI-FFL.txt`. |
+| Appearance | **System / Light / Dark**, persisted as `theme.txt`. `ThemeStore` reads before the first frame, writes temp→atomic rename, and falls back to `System` on a corrupt file. Android system-bar icons follow the resolved theme. |
+| Motion | `SharedTransitionLayout` + `AnimatedContent`; the grid card image morphs into the PDP image by product slug. Android runs shared bounds; iOS keeps the same navigation/cross-fade and skips the bounds (D-16). |
+| Accessibility | 48dp minimum controls, `selectable` + tab/radio roles, `liveRegion` for async status, heading semantics, image descriptions, 4.5:1 red/placeholder text, and 3:1 control borders (`ControlLine`). |
+
+The Phase 2 screenshots below predate this direction; the implementation is
+ahead of the captures until Phase 5 regenerates them.
+
 ## Architecture (Phase 2)
 
 `AppGraph` is the single composition root. It creates one app-scoped
@@ -63,6 +86,7 @@ AppGraph (DI)
        ├─ BagStore                bag lines + persisted journal
        ├─ CheckoutStore           checkout sessions + order submission
        ├─ NewsletterStore         subscribe state
+       ├─ ThemeStore              System/Light/Dark appearance + persistence
        └─ Router                  typed back stack over sealed Destination
 ```
 
@@ -214,37 +238,26 @@ Indian digit grouping (`₹12,34,567`).
 
 ### RLS warning
 
-The supplied schema marks the admin write policies as role `public` with
-`USING (true)` / `WITH CHECK (true)` on nine catalogue tables (`products`,
-`variants`, `product_images`, `embroidery_details`, `universes`, `categories`,
-`collections`, `motifs`, `garments`). Anyone with the publishable key can
-therefore modify the catalogue. A safe probe (an intentionally invalid
-`products` insert) reaches the table's NOT NULL constraint instead of being
-rejected by RLS, which confirms the policy is open.
+The **current** hosted state is the authenticated-admin lockdown (D-15,
+`20260104000000_lockdown_auth_admin.sql`):
 
-The **full** lockdown
-([`20260102000000_lock_catalogue_writes.sql`](supabase/migrations/20260102000000_lock_catalogue_writes.sql))
-drops every public/anon/authenticated write policy on the nine tables, revokes
-`INSERT`/`UPDATE`/`DELETE` from `anon` and `authenticated`, and removes the demo
-policy that allows public uploads to the `product-images` bucket. It keeps
-public `SELECT` and the guest order / order-item / newsletter / review `INSERT`
-policies, so checkout keeps working (`place_order` is `SECURITY DEFINER` and
-does not need them). Admin edits will use `service_role`.
+- `anon` keeps public `SELECT` on the nine catalogue tables, so the storefront
+  reads still work.
+- `anon` has **no** INSERT/UPDATE/DELETE on the nine catalogue tables; the
+  refusal battery returns `42501` for all nine.
+- `orders` has no public SELECT (live probe: `200` with 0 rows).
+- Uploads to the `product-images` bucket require `authenticated`; the old public
+  upload policy is gone.
+- Guest checkout, order items, newsletter signup and `place_order` continue to
+  work (`place_order` is `SECURITY DEFINER` and does not depend on anon table
+  writes).
 
-That file is **paused** (D-13) because the web Admin Studio still uploads
-product photography and upserts `categories`/`garments`/`collections` under the
-publishable key. The shipped interim
-([`20260103000000_lockdown_interim.sql`](supabase/migrations/20260103000000_lockdown_interim.sql))
-revokes writes on the six core tables (`products`, `variants`,
-`product_images`, `embroidery_details`, `universes`, `motifs`) and deliberately
-leaves the Admin Studio paths working.
-
-As of 2026-10-23 the interim is **not applied**: a type-valid anonymous
-`garments` insert returned `201` (the probe row was deleted immediately), and a
-`products` insert still reached its NOT NULL constraint. The core catalogue is
-therefore still publicly writable. Once an authenticated admin gate lands,
-deploy the full file (OA-5) and run its two verification queries (expected: no
-client write policies on the nine catalogue tables, no public upload policy).
+**Remaining gate (OA-6):** `authenticated` is not an admin predicate. Catalogue
+policies use `using (true) with check (true)` and storage policies check only
+`bucket_id`, so any signed-in customer would have full catalogue write power.
+Gate both by an admin claim/allowlist before public sign-up ships. The earlier
+`20260102000000_lock_catalogue_writes.sql` (no-auth full lockdown) and
+`20260103000000_lockdown_interim.sql` remain in the repo as replay history.
 
 ## Stack
 
@@ -253,6 +266,8 @@ client write policies on the nine catalogue tables, no public upload policy).
 - UI is 100% `commonMain`; Android supplies the activity, manifest, resources and back-handler actual
 - Ktor **3.6.0** + kotlinx.serialization for PostgREST; CIO on Android, Darwin on iOS
 - JetBrains **lifecycle-viewmodel-compose 2.9.6** (KMP) owns `RootStore` across rotations
+- **Compose Resources** loads the self-hosted Satoshi OTF family (license in `docs/fonts/`)
+- **SharedTransitionLayout** drives the Android card→PDP shared element; iOS uses the same navigation with a cross-fade
 - **okio** for the on-disk catalogue cache and bag journal (deterministic, unit-testable with `FakeFileSystem`)
 - Coil **3.4.0** + `coil-network-ktor3` for remote product photography
 - No Supabase SDK: the MVP needs six catalogue reads and three writes, so the REST surface is explicit and small
@@ -271,6 +286,7 @@ composeApp/src/
     data/SupabaseRepository.kt     reads with retry, atomic order write, newsletter
     data/SnapshotCache.kt          atomic disk cache of the catalogue (offline-first)
     data/BagPersistence.kt         atomic persisted bag journal (slug/sku/quantity)
+    data/ThemePersistence.kt       atomic theme.txt preference (3-state appearance)
     data/LocalFiles.kt             expect/actual app-private directory (+ android/ios actuals)
     data/Mappers.kt                DTO → domain mapping
     data/SupabaseHttpClient.kt     Ktor client, RLS-safe headers, timeouts
@@ -282,20 +298,28 @@ composeApp/src/
     state/BagStore.kt              bag lines + persisted journal
     state/CheckoutStore.kt         checkout sessions + order submission
     state/NewsletterStore.kt       subscribe state
+    state/ThemeStore.kt            System/Light/Dark appearance + persistence
     state/AppStoreViewModel.kt     owns RootStore and cancels its scope
+    ui/SharedElement.kt            card→PDP shared-element scope (Android true / iOS false)
+    ui/SystemBars.kt               status/navigation icon appearance (expect/actual)
     ui/components/                 artwork, remote image, icons, card, bottom bar
     ui/screens/                    Discover, Product, Bag, Checkout, Profile
+    ui/theme/Theme.kt              Satoshi type, light/dark palettes, semantic tokens
+    model/ThemeMode.kt             System/Light/Dark enum
+  commonMain/composeResources/font/  Satoshi OTF family (self-hosted)
   androidMain/                     MainActivity, CIO engine, manifest, theme
   iosMain/                         MainViewController, Darwin engine
   commonTest/                      Router/RootStore/BagStore/CatalogStore/
-                                   LocalPersistence tests + ignored live test
+                                   LocalPersistence/ThemeStore tests + ignored live test
 supabase/migrations/
   20260101000000_place_order_fn.sql       atomic orders SQL (v2, live)
-  20260102000000_lock_catalogue_writes.sql  full catalogue lockdown (paused, OA-5)
-  20260103000000_lockdown_interim.sql     interim six-table revoke (D-13)
+  20260102000000_lock_catalogue_writes.sql  full no-auth lockdown draft (replay history; superseded by D-15)
+  20260103000000_lockdown_interim.sql     interim six-table revoke (D-13, replay history)
+  20260104000000_lockdown_auth_admin.sql  authenticated-admin lockdown (D-15, live)
 docs/
   PROJECT_STATE.md, DECISIONS.md, CONVENTIONS.md
   phase-1-audit.md, phase-2-audit.md      findings + evidence
+  fonts/SATOSHI-FFL.txt                   ITF Free Font License for the bundled family
 ```
 
 ## Run it
@@ -330,20 +354,23 @@ iOS framework (optional, no Xcode shell included):
 
 ## Design direction
 
-**Current (Phase 2) direction:** bone paper, ink, acid lime and rust; serif
-display type against wide-tracked uppercase labels; square-ish 4dp corners.
-Universe cards borrow their colours from `universes.theme_tokens`, so each world
-changes the palette of the feed without hardcoded theme objects. Batch numbers
-(`Batch 01 / 50`) are treated as part of the product identity. Phase 3 is a
-deliberate design pass and will supersede this section once its direction is
-agreed.
+**Phase 3 (current): Uniqlo-inspired LifeWear shell.** Paper/ink surfaces, one
+brand-red accent, square 2dp geometry, Satoshi type, and product photography as
+the primary colour. Universe tokens tint universe cards/artwork but never app
+chrome. The newsletter is a fixed brand-black panel in both themes; image
+overlays always use a black scrim with white text. System/Light/Dark is a
+persisted user choice, and controls meet 48dp/contrast/role requirements. See
+[`DECISIONS.md` D-16](docs/DECISIONS.md#d-16--phase-3-design-system-uniqlo-shell-satoshi-3-state-theme-accepted-2026-10-23).
+
+The Phase 2 direction — bone paper, serif display, acid lime and rust — is
+superseded. Batch numbers (`Batch 01 / 50`) remain part of product identity.
 
 ## Verification
 
 - `:composeApp:assembleDebug` — passes
-- `:composeApp:testDebugUnitTest` — 40 passed, 1 skipped, 0 failures (41 tests:
-  Router 10, RootStore 14, BagStore 7, CatalogStore 3, LocalPersistence 6, live
-  test skipped)
+- `:composeApp:testDebugUnitTest` — 46 passed, 1 skipped, 0 failures (47 tests:
+  Router 10, RootStore 14, BagStore 7, CatalogStore 3, LocalPersistence 8,
+  ThemeStore 4, live test skipped)
 - `:composeApp:lintDebug` — 0 errors, 12 warnings (dependency/version updates
   and the v26 adaptive-icon folder; see OA-3)
 - Live catalogue decode verified against the project: 10 products, 3 universes,
@@ -353,6 +380,9 @@ agreed.
   current drift and the fragile invariants are in
   [`PROJECT_STATE.md`](docs/PROJECT_STATE.md#backend-contract-shared-with-the-web-project)
 - `:composeApp:compileKotlinIosSimulatorArm64` — passes with the Darwin engine
+- Phase 3 design verification — Satoshi OTF + licence, dynamic light/dark
+  palette, 48dp controls, selectable/radio semantics, fixed image scrims,
+  persisted 3-state theme with corrupt-file fallback
 - `place_order` executed against a local PostgreSQL 16 instance with the real
   `orders` / `order_items` schema and anon-style RLS: `created_at` default is
   applied, items attach to the header, empty payloads roll back, and the
@@ -373,21 +403,19 @@ agreed.
 
 - [x] **OA-1** — `place_order` v2 + `get_order_details` applied and verified
       live on the hosted project.
-- [ ] **OA-2** — apply the interim
-      `20260103000000_lockdown_interim.sql`, then confirm an anonymous
-      `products`/`garments` write flips to permission denied.
-- [ ] **OA-5** — once web `/admin` is authenticated (or uses service-role
-      credentials), apply the full
-      `20260102000000_lock_catalogue_writes.sql` and run its verification
-      queries.
+- [x] **OA-2 / OA-5** — authenticated-admin lockdown
+      (`20260104000000_lockdown_auth_admin.sql`) applied and live-verified:
+      anon reads intact, anon writes refused on all nine catalogue tables.
+- [ ] **OA-6** — add an admin claim/allowlist so `authenticated` is not blanket
+      admin power; required before public sign-up.
 - [ ] **OA-3** — revisit lint's Kotlin analyser when the toolchain moves to
       AGP 9.x (currently a Kotlin 2.2 reader against 2.4.21 metadata).
 - [ ] **D-6** — add server-trusted pricing/stock validation before real
       payments (the client currently supplies the unit price).
 - [ ] **D-7** — add retry-safe order ids at payment integration (a timeout
       after commit can currently duplicate an order if the client retries).
-- [ ] **Phase 3** — design elevation: Uniqlo-inspired redesign, dark theme,
-      brand fonts, shared-element card → PDP transition, accessibility.
+- [x] **Phase 3** — Uniqlo-inspired redesign, dark theme, Satoshi fonts,
+      shared-element card → PDP transition, accessibility pass.
 
 See [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) for status and
 [`docs/phase-2-audit.md`](docs/phase-2-audit.md) for this audit's findings and

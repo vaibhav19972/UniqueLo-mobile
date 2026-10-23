@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -35,7 +37,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -50,6 +54,7 @@ import com.uniquelo.app.state.BagStore
 import com.uniquelo.app.ui.components.ProductVisual
 import com.uniquelo.app.ui.components.UiIcon
 import com.uniquelo.app.ui.components.parseHexColor
+import com.uniquelo.app.ui.productSharedElement
 import com.uniquelo.app.ui.theme.Palette
 
 @Composable
@@ -133,7 +138,7 @@ fun ProductScreen(
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = selectedVariant?.let { formatCents(it.priceCents) } ?: product.priceLabel,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     color = Palette.Ink,
                 )
                 selectedVariant?.compareAtPriceCents?.takeIf { it > selectedVariant.priceCents }?.let { compare ->
@@ -180,7 +185,10 @@ fun ProductScreen(
                     color = Palette.Muted,
                 )
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.selectableGroup(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     sizesForColor.forEach { variant ->
                         SizeChip(
                             variant = variant,
@@ -203,7 +211,7 @@ fun ProductScreen(
                     style = MaterialTheme.typography.labelSmall,
                     color = when {
                         selectedVariant?.inStock == true && selectedVariant.lowStock -> Palette.Rust
-                        selectedVariant?.inStock == true -> Palette.Olive
+                        selectedVariant?.inStock == true -> Palette.Muted
                         else -> Palette.Muted
                     },
                 )
@@ -243,45 +251,51 @@ private fun Gallery(
             .fillMaxWidth()
             .height(430.dp),
     ) {
-        if (images.isEmpty()) {
-            ProductVisual(
-                product = product,
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            val pagerState = rememberPagerState(pageCount = { images.size })
-            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                val image = images[page]
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .productSharedElement(product.slug),
+        ) {
+            if (images.isEmpty()) {
                 ProductVisual(
                     product = product,
-                    imageUrl = image.src,
-                    contentDescription = image.alt.ifBlank { product.name },
                     modifier = Modifier.fillMaxSize(),
                 )
-            }
-            if (images.size > 1) {
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 14.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(Palette.Ink.copy(alpha = 0.45f))
-                        .padding(horizontal = 9.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
-                    images.indices.forEach { index ->
-                        Box(
-                            modifier = Modifier
-                                .size(if (pagerState.currentPage == index) 7.dp else 5.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    if (pagerState.currentPage == index) {
-                                        Palette.Lime
-                                    } else {
-                                        Palette.Paper.copy(alpha = 0.55f)
-                                    },
-                                ),
-                        )
+            } else {
+                val pagerState = rememberPagerState(pageCount = { images.size })
+                HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
+                    val image = images[page]
+                    ProductVisual(
+                        product = product,
+                        imageUrl = image.src,
+                        contentDescription = image.alt.ifBlank { product.name },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                if (images.size > 1) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 14.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(Palette.ImageScrim.copy(alpha = 0.45f))
+                            .padding(horizontal = 9.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        images.indices.forEach { index ->
+                            Box(
+                                modifier = Modifier
+                                    .size(if (pagerState.currentPage == index) 7.dp else 5.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (pagerState.currentPage == index) {
+                                            Palette.Rust
+                                        } else {
+                                            Palette.OnImage.copy(alpha = 0.55f)
+                                        },
+                                    ),
+                            )
+                        }
                     }
                 }
             }
@@ -290,7 +304,7 @@ private fun Gallery(
         Box(
             modifier = Modifier
                 .padding(16.dp)
-                .size(46.dp)
+                .size(48.dp)
                 .clip(CircleShape)
                 .background(Palette.Paper.copy(alpha = 0.94f))
                 .semantics { contentDescription = "Back" }
@@ -304,12 +318,12 @@ private fun Gallery(
             Text(
                 text = edition.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
-                color = Palette.Ink,
+                color = Palette.OnAccent,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(16.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Palette.Lime)
+                    .background(Palette.Rust)
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             )
         }
@@ -330,16 +344,20 @@ private fun ColorSelector(
         overflow = TextOverflow.Ellipsis,
     )
     Spacer(Modifier.height(9.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(
+        modifier = Modifier.selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
         colors.forEach { (name, hex) ->
             val isSelected = name == selected
             Box(
                 modifier = Modifier
-                    .size(34.dp)
+                    .size(48.dp)
+                    .padding(6.dp)
                     .clip(CircleShape)
                     .border(
                         width = if (isSelected) 2.dp else 1.dp,
-                        color = if (isSelected) Palette.Ink else Palette.Line,
+                        color = if (isSelected) Palette.Ink else Palette.ControlLine,
                         shape = CircleShape,
                     )
                     .padding(4.dp)
@@ -347,7 +365,11 @@ private fun ColorSelector(
                     .background(parseHexColor(hex, Palette.Sand))
                     .border(1.dp, Palette.Ink.copy(alpha = 0.18f), CircleShape)
                     .semantics { contentDescription = "Colour $name" }
-                    .clickable { onSelect(name) },
+                    .selectable(
+                        selected = isSelected,
+                        onClick = { onSelect(name) },
+                        role = Role.RadioButton,
+                    ),
             )
         }
     }
@@ -371,16 +393,21 @@ private fun SizeChip(
     }
     Box(
         modifier = Modifier
-            .height(42.dp)
-            .defaultMinSize(minWidth = 54.dp)
-            .clip(RoundedCornerShape(3.dp))
+            .height(48.dp)
+            .defaultMinSize(minWidth = 56.dp)
+            .clip(RoundedCornerShape(2.dp))
             .background(bg)
             .border(
                 width = 1.dp,
-                color = if (selected) Palette.Ink else Palette.Line,
-                shape = RoundedCornerShape(3.dp),
+                color = if (selected) Palette.Ink else Palette.ControlLine,
+                shape = RoundedCornerShape(2.dp),
             )
-            .clickable(enabled = variant.inStock, onClick = onClick)
+            .selectable(
+                selected = selected,
+                enabled = variant.inStock,
+                role = Role.RadioButton,
+                onClick = onClick,
+            )
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -406,8 +433,9 @@ private fun ProductStory(product: Product) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
-            .background(Palette.Sand)
+            .clip(RoundedCornerShape(2.dp))
+            .background(Palette.Paper)
+            .border(1.dp, Palette.Line, RoundedCornerShape(2.dp))
             .padding(16.dp),
     ) {
         Text(
@@ -436,8 +464,8 @@ private fun ProductStory(product: Product) {
                         color = Palette.Ink,
                         maxLines = 1,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .border(1.dp, Palette.Ink.copy(alpha = 0.2f), RoundedCornerShape(50))
+                            .clip(RoundedCornerShape(2.dp))
+                            .border(1.dp, Palette.Ink.copy(alpha = 0.2f), RoundedCornerShape(2.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                     )
                 }
@@ -591,7 +619,7 @@ private fun ReviewCard(review: Review) {
                 Text(
                     text = "VERIFIED",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Palette.Olive,
+                    color = Palette.Rust,
                 )
             }
         }
@@ -628,13 +656,13 @@ private fun PurchaseBar(
     val buttonColor by animateColorAsState(
         when {
             added -> Palette.Ink
-            canAdd -> Palette.Lime
+            canAdd -> Palette.Rust
             else -> Palette.Sand
         },
     )
     val labelColor = when {
         added -> Palette.Paper
-        canAdd -> Palette.Ink
+        canAdd -> Palette.OnAccent
         else -> Palette.Muted
     }
 
@@ -663,8 +691,9 @@ private fun PurchaseBar(
             modifier = Modifier
                 .weight(1.6f)
                 .height(54.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(2.dp))
                 .background(buttonColor)
+                .semantics { role = Role.Button }
                 .clickable(enabled = added || canAdd) {
                     if (added) onViewBag() else onAdd()
                 },

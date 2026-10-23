@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -36,7 +38,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -83,19 +90,34 @@ fun DiscoverScreen(
 
         item {
             Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .width(24.dp)
+                            .height(2.dp)
+                            .background(Palette.Rust),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "THE AUTUMN EDIT",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Palette.Rust,
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
                 Text(
                     text = "Wearable worlds.\nStitched stories.",
-                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 36.sp, lineHeight = 38.sp),
+                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 38.sp, lineHeight = 41.sp),
                     color = Palette.Ink,
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(
                     text = "Limited-run embroidery from independent craft clusters — " +
                         "three universes, one wardrobe.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = Palette.Muted,
                 )
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(22.dp))
                 SearchField(
                     value = catalog.query,
                     onValueChange = { catalog.query = it },
@@ -163,9 +185,10 @@ fun DiscoverScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text(
-                            text = if (searching) "Results" else "The edit",
+                            text = if (searching) "Results" else "New arrivals",
                             style = MaterialTheme.typography.headlineSmall,
                             color = Palette.Ink,
+                            modifier = Modifier.semantics { heading() },
                         )
                         Text(
                             text = "${results.size} ${if (results.size == 1) "piece" else "pieces"}",
@@ -219,6 +242,13 @@ private fun Header(
     ) {
         Column {
             Row(verticalAlignment = Alignment.Bottom) {
+                Box(
+                    modifier = Modifier
+                        .padding(bottom = 6.dp)
+                        .size(10.dp)
+                        .background(Palette.Rust),
+                )
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = "Unique",
                     style = MaterialTheme.typography.headlineMedium,
@@ -240,9 +270,10 @@ private fun Header(
 
         Box(
             modifier = Modifier
-                .size(46.dp)
-                .clip(CircleShape)
-                .border(1.dp, Palette.Line, CircleShape)
+                .size(48.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Palette.Paper)
+                .border(1.dp, Palette.ControlLine, RoundedCornerShape(2.dp))
                 .semantics { contentDescription = "Open bag" }
                 .clickable(onClick = onBagClick),
             contentAlignment = Alignment.Center,
@@ -252,16 +283,16 @@ private fun Header(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .size(17.dp)
+                        .size(18.dp)
                         .clip(CircleShape)
-                        .background(Palette.Lime),
+                        .background(Palette.Rust),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = if (bagCount > 9) "9+" else bagCount.toString(),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Palette.Ink,
+                        color = Palette.OnAccent,
                     )
                 }
             }
@@ -278,11 +309,11 @@ private fun SearchField(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .clip(RoundedCornerShape(4.dp))
+            .height(52.dp)
+            .clip(RoundedCornerShape(2.dp))
             .background(Palette.Paper)
-            .border(1.dp, Palette.Line, RoundedCornerShape(4.dp))
-            .padding(horizontal = 14.dp),
+            .border(1.dp, Palette.ControlLine, RoundedCornerShape(2.dp))
+            .padding(start = 16.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         UiIcon(UiIcon.Search, modifier = Modifier.size(18.dp), tint = Palette.Muted)
@@ -292,22 +323,25 @@ private fun SearchField(
                 Text(
                     text = "Search pieces, motifs or crafts",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Palette.Muted.copy(alpha = 0.8f),
+                    color = Palette.Muted,
                 )
             }
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = "Search the catalogue" },
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = Palette.Ink),
-                cursorBrush = SolidColor(Palette.Ink),
+                cursorBrush = SolidColor(Palette.Rust),
             )
         }
         if (value.isNotEmpty()) {
             Box(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(2.dp))
                     .semantics { contentDescription = "Clear search" }
                     .clickable(onClick = onClear),
                 contentAlignment = Alignment.Center,
@@ -344,14 +378,17 @@ private fun UniverseSection(
                     style = MaterialTheme.typography.labelSmall,
                     color = Palette.Rust,
                     modifier = Modifier
+                        .clip(RoundedCornerShape(2.dp))
                         .clickable(onClick = onClear)
-                        .padding(vertical = 4.dp),
+                        .padding(horizontal = 4.dp, vertical = 17.dp),
                 )
             }
         }
         Spacer(Modifier.height(10.dp))
         LazyRow(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .selectableGroup(),
             contentPadding = PaddingValues(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -378,17 +415,24 @@ private fun UniverseCard(
 
     Column(
         modifier = Modifier
-            .width(238.dp)
-            .height(154.dp)
-            .clip(RoundedCornerShape(4.dp))
+            .width(258.dp)
+            .height(160.dp)
+            .clip(RoundedCornerShape(2.dp))
             .background(bg)
             .border(
                 width = if (selected) 2.dp else 1.dp,
-                color = if (selected) accent else bg.copy(alpha = 0.6f),
-                shape = RoundedCornerShape(4.dp),
+                color = if (selected) Palette.Rust else bg.copy(alpha = 0.6f),
+                shape = RoundedCornerShape(2.dp),
             )
-            .clickable(onClick = onClick)
-            .padding(15.dp),
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                role = Role.Tab,
+            )
+            .semantics {
+                contentDescription = "Filter by ${universe.name}"
+            }
+            .padding(16.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(
@@ -443,7 +487,9 @@ private fun CategoryChips(
     onSelect: (String?) -> Unit,
 ) {
     LazyRow(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectableGroup(),
         contentPadding = PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -473,18 +519,23 @@ private fun CategoryChip(
     Text(
         text = label,
         style = MaterialTheme.typography.labelSmall,
-        color = if (selected) Palette.Ink else Palette.Muted,
+        color = if (selected) Palette.Paper else Palette.Ink,
         maxLines = 1,
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (selected) Palette.Lime else Palette.Paper)
+            .height(48.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(if (selected) Palette.Ink else Palette.Paper)
             .border(
                 width = 1.dp,
-                color = if (selected) Palette.Lime else Palette.Line,
-                shape = RoundedCornerShape(50),
+                color = if (selected) Palette.Ink else Palette.ControlLine,
+                shape = RoundedCornerShape(2.dp),
             )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 9.dp),
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                role = Role.Tab,
+            )
+            .padding(horizontal = 16.dp, vertical = 15.dp),
     )
 }
 
@@ -497,8 +548,9 @@ private fun FeaturedCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
-            .height(380.dp)
-            .clip(RoundedCornerShape(4.dp))
+            .height(420.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .semantics { role = Role.Button }
             .clickable(onClick = onClick),
     ) {
         ProductVisual(
@@ -511,7 +563,7 @@ private fun FeaturedCard(
                 .background(
                     Brush.verticalGradient(
                         0.25f to Color.Transparent,
-                        1f to Palette.Ink.copy(alpha = 0.92f),
+                        1f to Palette.ImageScrim.copy(alpha = 0.92f),
                     ),
                 ),
         )
@@ -519,26 +571,26 @@ private fun FeaturedCard(
         Text(
             text = "EDITOR'S PICK",
             style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.8.sp),
-            color = Palette.Ink,
+            color = Palette.OnAccent,
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(14.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(Palette.Lime)
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .clip(RoundedCornerShape(0.dp))
+                .background(Palette.Rust)
+                .padding(horizontal = 9.dp, vertical = 5.dp),
         )
 
         product.editionLabel?.let { edition ->
             Text(
                 text = edition.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
-                color = Palette.Paper,
+                color = Palette.OnImage,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(14.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Palette.Ink.copy(alpha = 0.6f))
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .clip(RoundedCornerShape(0.dp))
+                    .background(Palette.ImageScrim.copy(alpha = 0.72f))
+                    .padding(horizontal = 9.dp, vertical = 5.dp),
             )
         }
 
@@ -546,22 +598,22 @@ private fun FeaturedCard(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .fillMaxWidth()
-                .padding(18.dp),
+                .padding(20.dp),
         ) {
             Text(
                 text = "${product.universeName} · ${product.categoryLabel}".uppercase(),
                 style = MaterialTheme.typography.labelSmall,
-                color = Palette.Paper.copy(alpha = 0.85f),
+                color = Palette.OnImage.copy(alpha = 0.85f),
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = product.name,
                 style = MaterialTheme.typography.headlineMedium,
-                color = Palette.Paper,
+                color = Palette.OnImage,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -570,20 +622,26 @@ private fun FeaturedCard(
                 Text(
                     text = "${product.craftCluster ?: product.universeName} · ${product.priceLabel}",
                     style = MaterialTheme.typography.labelLarge,
-                    color = Palette.Paper.copy(alpha = 0.9f),
+                    color = Palette.OnImage.copy(alpha = 0.9f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(Palette.Rust),
+                    )
+                    Spacer(Modifier.width(6.dp))
                     Text(
                         text = "VIEW",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Palette.Lime,
+                        color = Palette.OnImage,
                     )
-                    Spacer(Modifier.width(4.dp))
-                    UiIcon(UiIcon.ChevronRight, modifier = Modifier.size(14.dp), tint = Palette.Lime)
+                    Spacer(Modifier.width(2.dp))
+                    UiIcon(UiIcon.ChevronRight, modifier = Modifier.size(14.dp), tint = Palette.OnImage)
                 }
             }
         }
@@ -597,46 +655,49 @@ private fun NewsletterBlock(newsletter: NewsletterStore) {
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
             .padding(top = 30.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(Palette.Ink)
+            .clip(RoundedCornerShape(2.dp))
+            .background(Palette.InverseSurface)
             .padding(20.dp),
     ) {
         Text(
             text = "THE NEXT DROP, FIRST",
             style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.8.sp),
-            color = Palette.Lime,
+            color = Palette.InverseAccent,
         )
         Spacer(Modifier.height(8.dp))
         Text(
             text = "One letter per world.\nNo noise, no restocks.",
             style = MaterialTheme.typography.headlineSmall,
-            color = Palette.Paper,
+            color = Palette.OnInverse,
         )
         Spacer(Modifier.height(8.dp))
         Text(
             text = "Join the list and hear when a batch opens.",
             style = MaterialTheme.typography.bodyMedium,
-            color = Palette.Paper.copy(alpha = 0.7f),
+            color = Palette.OnInverse.copy(alpha = 0.7f),
         )
         Spacer(Modifier.height(18.dp))
 
         when (val state = newsletter.subscribeState) {
             is SubscribeState.Success -> {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Box(
                         modifier = Modifier
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(Palette.Lime),
+                            .background(Palette.InverseAccent),
                         contentAlignment = Alignment.Center,
                     ) {
-                        UiIcon(UiIcon.Check, modifier = Modifier.size(13.dp), tint = Palette.Ink)
+                        UiIcon(UiIcon.Check, modifier = Modifier.size(13.dp), tint = Palette.InverseSurface)
                     }
                     Spacer(Modifier.width(10.dp))
                     Text(
                         text = "You're on the list. Watch your inbox.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Palette.Paper,
+                        color = Palette.OnInverse,
                     )
                 }
             }
@@ -649,8 +710,8 @@ private fun NewsletterBlock(newsletter: NewsletterStore) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(46.dp)
-                            .border(1.dp, Palette.Paper.copy(alpha = 0.25f), RoundedCornerShape(3.dp))
+                            .height(48.dp)
+                            .border(1.dp, Palette.OnInverse.copy(alpha = 0.45f), RoundedCornerShape(2.dp))
                             .padding(horizontal = 12.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
@@ -658,7 +719,7 @@ private fun NewsletterBlock(newsletter: NewsletterStore) {
                             Text(
                                 text = "you@example.com",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Palette.Paper.copy(alpha = 0.45f),
+                                color = Palette.OnInverse.copy(alpha = 0.7f),
                             )
                         }
                         BasicTextField(
@@ -669,10 +730,12 @@ private fun NewsletterBlock(newsletter: NewsletterStore) {
                                     newsletter.clearSubscribeError()
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics { contentDescription = "Email address" },
                             singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Palette.Paper),
-                            cursorBrush = SolidColor(Palette.Lime),
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Palette.OnInverse),
+                            cursorBrush = SolidColor(Palette.InverseAccent),
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Email,
                                 imeAction = ImeAction.Done,
@@ -683,26 +746,27 @@ private fun NewsletterBlock(newsletter: NewsletterStore) {
                     Spacer(Modifier.width(10.dp))
                     Box(
                         modifier = Modifier
-                            .height(46.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(Palette.Lime)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Palette.InverseAccent)
+                            .semantics { role = Role.Button }
                             .clickable(enabled = state !is SubscribeState.Submitting) {
                                 newsletter.subscribe()
                             }
-                            .padding(horizontal = 16.dp),
+                            .padding(horizontal = 18.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (state is SubscribeState.Submitting) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
-                                color = Palette.Ink,
+                                color = Palette.InverseSurface,
                                 strokeWidth = 2.dp,
                             )
                         } else {
                             Text(
                                 text = "NOTIFY ME",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Palette.Ink,
+                                color = Palette.InverseSurface,
                             )
                         }
                     }
@@ -712,7 +776,8 @@ private fun NewsletterBlock(newsletter: NewsletterStore) {
                     Text(
                         text = state.message,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFFFFB4A1),
+                        color = Palette.InverseAccent,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
             }
@@ -748,7 +813,7 @@ private fun SyncBanner(
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
             .padding(top = 12.dp)
-            .clip(RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(2.dp))
             .background(Palette.Sand)
             .padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -783,8 +848,8 @@ private fun ErrorBlock(
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
             .padding(top = 24.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .border(1.dp, Palette.Line, RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(2.dp))
+            .border(1.dp, Palette.Line, RoundedCornerShape(2.dp))
             .background(Palette.Paper)
             .padding(18.dp),
     ) {
@@ -803,12 +868,14 @@ private fun ErrorBlock(
         Text(
             text = "TRY AGAIN",
             style = MaterialTheme.typography.labelSmall,
-            color = Palette.Ink,
+            color = Palette.OnAccent,
             modifier = Modifier
+                .height(48.dp)
                 .clip(RoundedCornerShape(2.dp))
-                .background(Palette.Lime)
+                .background(Palette.Rust)
+                .semantics { role = Role.Button }
                 .clickable(onClick = onRetry)
-                .padding(horizontal = 14.dp, vertical = 9.dp),
+                .padding(horizontal = 18.dp, vertical = 16.dp),
         )
     }
 }
@@ -836,12 +903,14 @@ private fun EmptySearch(onReset: () -> Unit) {
         Text(
             text = "CLEAR FILTERS",
             style = MaterialTheme.typography.labelSmall,
-            color = Palette.Ink,
+            color = Palette.OnAccent,
             modifier = Modifier
+                .height(48.dp)
                 .clip(RoundedCornerShape(2.dp))
-                .background(Palette.Lime)
+                .background(Palette.Rust)
+                .semantics { role = Role.Button }
                 .clickable(onClick = onReset)
-                .padding(horizontal = 14.dp, vertical = 9.dp),
+                .padding(horizontal = 18.dp, vertical = 16.dp),
         )
     }
 }

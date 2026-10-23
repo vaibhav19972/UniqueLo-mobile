@@ -22,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.uniquelo.app.navigation.Destination
@@ -82,6 +84,9 @@ private fun BottomBarItem(
                 onClick = onClick,
                 role = Role.Tab,
             )
+            .semantics {
+                if (badge > 0) stateDescription = "$badge items in bag"
+            }
             .padding(horizontal = 18.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -98,14 +103,14 @@ private fun BottomBarItem(
                         .offset(x = 9.dp, y = (-7).dp)
                         .size(16.dp)
                         .clip(CircleShape)
-                        .background(Palette.Lime),
+                        .background(Palette.Rust),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = if (badge > 9) "9+" else badge.toString(),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Palette.Ink,
+                        color = Palette.OnAccent,
                     )
                 }
             }
@@ -119,8 +124,7 @@ private fun BottomBarItem(
         Spacer(Modifier.height(3.dp))
         Box(
             modifier = Modifier
-                .size(width = 4.dp, height = 4.dp)
-                .clip(CircleShape)
+                .size(width = 18.dp, height = 2.dp)
                 .background(if (selected) Palette.Rust else Palette.Paper),
         )
     }

@@ -1,6 +1,7 @@
 package com.uniquelo.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -24,14 +26,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.uniquelo.app.model.ThemeMode
+import com.uniquelo.app.state.ThemeStore
 import com.uniquelo.app.ui.components.UiIcon
 import com.uniquelo.app.ui.theme.Palette
 
 @Composable
-fun ProfileScreen(onBrowse: () -> Unit) {
+fun ProfileScreen(
+    theme: ThemeStore,
+    onBrowse: () -> Unit,
+) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
@@ -41,21 +52,22 @@ fun ProfileScreen(onBrowse: () -> Unit) {
                 text = "Profile",
                 style = MaterialTheme.typography.headlineMedium,
                 color = Palette.Ink,
+                modifier = Modifier.semantics { heading() },
             )
             Spacer(Modifier.height(20.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(66.dp)
-                        .clip(CircleShape)
-                        .background(Palette.Lime),
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Palette.Rust),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         text = "UL",
                         style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Palette.Ink,
+                        color = Palette.OnAccent,
                     )
                 }
                 Spacer(Modifier.width(14.dp))
@@ -94,37 +106,40 @@ fun ProfileScreen(onBrowse: () -> Unit) {
             }
 
             Spacer(Modifier.height(24.dp))
+            AppearanceSection(theme)
+            Spacer(Modifier.height(24.dp))
         }
 
         item {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Palette.Rust)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Palette.InverseSurface)
                     .padding(18.dp),
             ) {
                 Column {
                     Text(
                         text = "CRAFT WITH UNIQUELO",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Palette.Paper.copy(alpha = 0.8f),
+                        color = Palette.OnInverse.copy(alpha = 0.7f),
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
                         text = "Embroider in a cluster?\nPut your craft in the next drop.",
                         style = MaterialTheme.typography.headlineSmall,
-                        color = Palette.Paper,
+                        color = Palette.OnInverse,
                     )
                     Spacer(Modifier.height(14.dp))
                     Text(
                         text = "APPLY AS A MAKER",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Palette.Ink,
+                        color = Palette.InverseSurface,
                         modifier = Modifier
+                            .height(48.dp)
                             .clip(RoundedCornerShape(2.dp))
-                            .background(Palette.Lime)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .background(Palette.InverseAccent)
+                            .padding(horizontal = 14.dp, vertical = 16.dp),
                     )
                 }
             }
@@ -147,15 +162,16 @@ fun ProfileScreen(onBrowse: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Palette.Ink)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Palette.Rust)
+                    .semantics { role = Role.Button }
                     .clickable(onClick = onBrowse),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "BACK TO THE EDIT",
+                    text = "SHOP NEW ARRIVALS",
                     style = MaterialTheme.typography.labelLarge,
-                    color = Palette.Lime,
+                    color = Palette.OnAccent,
                 )
             }
             Spacer(Modifier.height(20.dp))
@@ -167,6 +183,69 @@ fun ProfileScreen(onBrowse: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
+}
+
+@Composable
+private fun AppearanceSection(theme: ThemeStore) {
+    Text(
+        text = "APPEARANCE",
+        style = MaterialTheme.typography.labelSmall,
+        color = Palette.Muted,
+    )
+    Spacer(Modifier.height(8.dp))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        ThemeMode.entries.forEach { mode ->
+            ThemeChoice(
+                label = mode.name,
+                selected = theme.mode == mode,
+                onClick = { theme.select(mode) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = "System follows your device setting.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = Palette.Muted,
+    )
+}
+
+@Composable
+private fun ThemeChoice(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(if (selected) Palette.Ink else Palette.Paper)
+            .border(
+                width = 1.dp,
+                color = if (selected) Palette.Ink else Palette.ControlLine,
+                shape = RoundedCornerShape(2.dp),
+            )
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                role = Role.RadioButton,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) Palette.Paper else Palette.Muted,
+        )
     }
 }
 
@@ -209,7 +288,7 @@ private fun ProfileRow(label: String, last: Boolean = false) {
                     color = Palette.Muted,
                 )
                 Spacer(Modifier.width(8.dp))
-                UiIcon(UiIcon.ChevronRight, modifier = Modifier.size(14.dp), tint = Palette.Line)
+                UiIcon(UiIcon.ChevronRight, modifier = Modifier.size(14.dp), tint = Palette.Muted)
             }
         }
         if (!last) HorizontalDivider(color = Palette.Line)

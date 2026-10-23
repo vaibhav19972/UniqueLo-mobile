@@ -14,7 +14,7 @@
 | 1 | Defects & safety: rotation/process-death survival, offline-first cache, bag journal, atomic orders, saveable UI state | ✅ code complete & audited; OA-1 + OA-2 deployed and live-verified — authenticated-admin catalogue lockdown live (D-15) |
 | 1-audit | Independent audit + fixes (`docs/phase-1-audit.md`) | ✅ `590cd3f` — 24 passed / 1 skipped, verified |
 | **2** | **Architecture: type-safe navigation, store split (Catalog/Bag/Checkout/Newsletter), DI graph, CI pipeline** | ✅ `6840046` + `37937a0` + `76f91af` ; docs+SQL `78a5d6b` ; crash fix `ef321c6` ; audit fixes `9c5dcc4` (`docs/phase-2-audit.md`) |
-| 3 | Design elevation: Uniqlo-inspired redesign (clean white, minimal type, red accent, LifeWear voice), dark theme, brand fonts, shared-element card→PDP, a11y | ⏳ next — can start now; OA-6 (admin gate on `authenticated`) is the remaining release gate, not a design dependency |
+| **3** | **Design elevation: Uniqlo-inspired shell, Satoshi typography, 3-state theme, shared-element card→PDP, 48dp targets + contrast pass** | ✅ design complete in this commit — `assembleDebug`, 47 tests, lint, iOS target all green; OA-6 remains the release gate, not a design dependency |
 | 4 | Commerce: wishlist, order history (auth), review submission, stock validation, payments decision | ⏳ |
 | 5 | Release engineering: signed builds, R8 map, icons/splash, deep links (incl. iOS shell) | ⏳ |
 
@@ -25,7 +25,7 @@
 | OA-1 | A12 | ~~Deploy `place_order_fn.sql` **v2**~~ **CLOSED**. Live-verified 2026-10-23 via publishable-key REST (read + rollback probes only, nothing written): named-args call → **400 `22023`** items-guard; `get_order_details` bad uuid → 400 `22P02`, stranger email → 200 `null`; junk-uuid-item probe → 400 **and** follow-up lookup → `null` ⇒ atomic rollback confirmed on the hosted project. Verify-form note: `{}` alone binds no args → `PGRST202` is *expected*, not a failure; use `{"p_order":{},"p_items":"[]"}` | **CLOSED — deployed + live-verified** |
 | OA-2 | A13 | ~~Full lockdown now~~ → **shipped 2026-10-23 as the authenticated-admin variant** `20260104000000_lockdown_auth_admin.sql` (D-15) — the Admin Studio moved to Supabase Auth, so the nine-table write policies/grants fell from `anon`, writes were granted to `authenticated`, and storage upload moved public → `authenticated`. Interim `20260103` and no-auth draft `20260102` remain as replay history (order 02 → 03 → 04) | **CLOSED — live-verified**: anon reads 9/9 `200`, `orders` read → 0 rows, anon INSERT refusal battery → `42501` on all nine tables |
 | OA-3 | A17 | AGP 8.13.2 lint analyser is a Kotlin 2.2 reader against 2.4.21 metadata — Kotlin static checks inside lint may be incomplete. Revisit when toolchain upgrades to AGP 9.x | OPEN — revisit later |
-| OA-4 | A16 | Cache/journal are read synchronously in the Store constructor (UI thread). Acceptable at MVP scale; revisit at catalogue scale | ACCEPTED (recorded) |
+| OA-4 | A16 | Cache/journal/theme preference are read synchronously in the Store constructor (UI thread). Acceptable at MVP scale; revisit at catalogue scale | ACCEPTED (recorded) |
 | OA-5 | D-13 | ~~Deploy the full lockdown when an admin gate lands~~ **trigger fired 2026-10-23** — Admin Studio authenticated; completion shipped as `20260104` (D-15) rather than the bare-revoke `20260102`, which now stays as replay history | **CLOSED** |
 | OA-6 | D-15 | `authenticated` currently holds blanket admin power with no admin predicate: catalogue policies are `using (true) with check (true)`, storage policies check only `bucket_id`. Gate both by an admin claim/allowlist (e.g. custom `user_type` JWT claim inside the policy predicates) **before public sign-up ships** | OPEN — trigger: before anyone besides staff can create accounts |
 
@@ -67,7 +67,7 @@ probe row that was deleted):**
 | `get_order_details` | live — bad uuid → `400 22P02` |
 | `embroidery_details` embed | returned as an **object**, not an array (see invariant below) |
 | `products.intensity` | **absent** (`400 42703`) — web taxonomy migration not applied to hosted |
-| Interim lockdown (D-13) | **not applied** — anon `garments` INSERT → `201`; probe row `__audit_probe__` deleted immediately, no net data change |
+| Interim lockdown (D-13) | **not applied at audit time** — anon `garments` INSERT → `201`; probe row `__audit_probe__` deleted immediately, no net data change. Superseded by the D-15 authenticated-admin lockdown (`42501` on all nine tables). |
 
 **Fragile invariants (break the mobile app if violated):**
 
@@ -101,6 +101,7 @@ AppGraph (DI, hand-rolled — ADR-8)
        ├─ BagStore — bag lines + persisted journal + rehydration
        ├─ CheckoutStore — checkout sessions, order submission
        ├─ NewsletterStore — subscribe state
+       ├─ ThemeStore — System/Light/Dark appearance, persisted atomically
        └─ Router — type-safe Destination back stack (ADR-3)
 screens depend on narrow slices (catalog / bag / checkout), never on RootStore
 ```
@@ -121,6 +122,7 @@ rotation.
 | Navigation / back stack | ✔ | ✔ | ✗ | `Router` is store-owned; process death lands on Discover |
 | Checkout form | ✗ | ✔ (per session) | ✗ | keyed by `checkoutSession`; fresh session per checkout (A8) |
 | Newsletter email field | ✔ | ✔ | ✗ | store-owned, low stakes |
+| Appearance preference | ✔ | ✔ | ✔ (`theme.txt`) | 3-state System/Light/Dark; read synchronously at `ThemeStore` construction, atomic temp→rename write |
 
 If you ship a new piece of retained state, add a row here **first**, then implement,
 then assert both the "survives" **and** the "must-forget" side of the row in tests.
@@ -151,8 +153,12 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
 | 2026-10-23 | `9c5dcc4` | system back during/after checkout | regression fixed + 3 tests: submitting cannot pop; back abandons the session; back after success closes it |
 
 | 2026-10-23 | docs audit | shared-backend consistency pass against `/Users/apple/MySpace/UniqueLo` (`schema.sql`, taxonomy migration, seeds, `data.ts`, `Admin.tsx`) | schema/table/column/embed contract matches mobile DTOs; **9 catalogue + 4 operational tables** confirmed; mobile owns no DDL (D-14). Web-owned drift recorded: hosted lacks `products.intensity` (migration `20261013` unapplied) |
-| 2026-10-23 | docs audit | hosted backend probes (publishable key, read-only except one probe row that was deleted) | `place_order` → `22023`; `get_order_details` → `22P02`; `embroidery_details` embeds as object; anon `garments` INSERT → `201` ⇒ interim lockdown not applied; probe row deleted, no net data change |
+| 2026-10-23 | docs audit | hosted backend probes (publishable key, read-only except one probe row that was deleted) | `place_order` → `22023`; `get_order_details` → `22P02`; `embroidery_details` embeds as object; anon `garments` INSERT → `201` at that moment ⇒ interim lockdown not yet applied; probe row deleted, no net data change. Superseded by the D-15 row below. |
 | 2026-10-23 | `20260104` (D-15) | authenticated-admin lockdown live checks — publishable-key REST, refusal battery only (nothing written) | **PASS** — catalogue reads 9/9 `200` (storefront intact), `reviews` read `200`, `orders` anon read → `200` with **0 rows** (no leak); anon INSERT → `42501 permission denied` on **all nine** catalogue tables (5 via type-valid `{name,slug}` probes, 4 via explicit-null probes against DTO-confirmed columns; was `23502`/`201` pre-lockdown). Storage not probe-tested (stray-object risk) — authenticated path to be proven by the Admin Studio sign-in smoke |
+| 2026-10-23 | this commit (D-16) | unit tests (fresh run) | **46 passed / 1 skipped / 0 failures** (47: Router 10, RootStore 14, Bag 7, Catalog 3, LocalPersistence 8, ThemeStore 4, live skipped) |
+| 2026-10-23 | this commit (D-16) | assembleDebug / lintDebug / compileKotlinIosSimulatorArm64 | pass / **0 errors, 12 warnings** (OA-3 dependency noise unchanged) / pass |
+| 2026-10-23 | this commit (D-16) | design/a11y review | dynamic light/dark `Palette`; Satoshi fonts + licence checked in; 48dp targets; selectable semantics; image scrims fixed across themes; no hardcoded white-on-photo text |
+| 2026-10-23 | this commit (D-16) | theme persistence tests | 4 `ThemeStore` tests + 2 `OkioThemePersistence` round-trip/corrupt-file tests; temp file removed after atomic rename |
 
 > The earlier `8/8` lockdown row was a reduced eight-table fixture. The
 > authoritative full-schema result is the `9c5dcc4` row above: the real
@@ -186,6 +192,35 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
   text, so the draft silently dropped nothing. The full-schema audit then found
   two scope holes: `garments` (3 write policies) and the public
   `product-images` upload policy; both are now covered.
+
+## Phase 3 notes (design system, next agents read these)
+
+- `Palette` is a composable property over `LocalUniqueLoColors`; the same
+  `Palette.X` call sites now switch light/dark without per-screen plumbing.
+  `Ink`/`Paper` invert in dark mode, so they are *semantic opposites*, not
+  fixed black/white.
+- Fixed image overlays use `Palette.ImageScrim` / `Palette.OnImage`; fixed
+  brand-black panels (newsletter) use `Palette.InverseSurface` /
+  `Palette.OnInverse` / `Palette.InverseAccent`. Do not paint white text on a
+  photo or red text on an inverted panel without these tokens.
+- Interactive borders use `Palette.ControlLine` (≥3:1 against both surfaces);
+  `Palette.Line` is for decorative dividers and card edges only.
+- `Rust` is the brand red (`#D5001C` light / `#FF4D57` dark). `Lime` survives
+  as a pale highlight token for compatibility; new CTAs use `Rust` +
+  `OnAccent` for contrast in both themes.
+- Typography is self-hosted **Satoshi OTF** (`composeResources/font/`, loaded
+  through `org.jetbrains.compose.resources.Font`). The ITF Free Font License is
+  checked in at `docs/fonts/SATOSHI-FFL.txt`; the font is redistributed under
+  that licence, not an app-owned asset.
+- Touch targets: 48dp minimum for back buttons, colour swatches, size chips,
+  steppers, theme choices and CTAs. Selectors use `selectable` with
+  `Role.Tab`/`Role.RadioButton`; status changes use `liveRegion`.
+- Shared-element transitions are Android-only (`supportsSharedElementTransitions`).
+  iOS keeps the same navigation and cross-fade but skips the shared bounds;
+  this is deliberate (D-16), not a silent regression.
+- Theme persistence is best-effort: a missing/read-only app directory disables
+  persistence, and a corrupt `theme.txt` falls back to `System` rather than
+  failing startup.
 
 ## Landmines (things that look fine but break)
 
@@ -230,3 +265,13 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
     `ProductDto.embroideryDetails` is a nullable object. Drop the constraint and
     the same query returns an array, so catalogue decoding fails at runtime.
     The web adapter accepts both shapes; mobile does not (D-14).
+12. **`Palette.Ink`/`Paper` are theme-semantic, not fixed colours.** In dark
+    mode they invert. Use `ImageScrim`/`OnImage` for anything painted over a
+    photograph, and `InverseSurface`/`OnInverse`/`InverseAccent` for a panel
+    that must stay brand-black. A raw `Color.White` on a photo or `Rust` on an
+    inverted panel will fail contrast in one of the themes.
+13. **One shared-element key per product.** `productSharedElement(slug)` is
+    applied to the grid card and the PDP image. Do not add the same key to a
+    second simultaneously composed image (for example the featured card) or
+    the transition has two sources and the bounds jump. The featured card
+    intentionally does not opt in.

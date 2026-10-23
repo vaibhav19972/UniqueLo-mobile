@@ -7,11 +7,13 @@ import com.uniquelo.app.data.PlacedOrder
 import com.uniquelo.app.data.SavedLine
 import com.uniquelo.app.data.SnapshotCache
 import com.uniquelo.app.data.SupabaseException
+import com.uniquelo.app.data.ThemePersistence
 import com.uniquelo.app.data.UniqueLoRepository
 import com.uniquelo.app.model.CartLine
 import com.uniquelo.app.model.Category
 import com.uniquelo.app.model.Product
 import com.uniquelo.app.model.Review
+import com.uniquelo.app.model.ThemeMode
 import com.uniquelo.app.model.ThemeTokens
 import com.uniquelo.app.model.Universe
 import com.uniquelo.app.model.Variant
@@ -74,6 +76,17 @@ internal class FakeBagJournal(
         saved.addAll(lines)
     }
     override fun clear() = saved.clear()
+}
+
+internal class FakeThemePersistence(
+    var stored: ThemeMode? = null,
+) : ThemePersistence {
+    var saves = 0
+    override fun load(): ThemeMode? = stored
+    override fun save(mode: ThemeMode) {
+        stored = mode
+        saves++
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

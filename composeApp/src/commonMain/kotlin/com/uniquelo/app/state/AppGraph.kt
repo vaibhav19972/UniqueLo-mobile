@@ -3,9 +3,11 @@ package com.uniquelo.app.state
 import com.uniquelo.app.data.BagPersistence
 import com.uniquelo.app.data.SnapshotCache
 import com.uniquelo.app.data.SupabaseRepository
+import com.uniquelo.app.data.ThemePersistence
 import com.uniquelo.app.data.UniqueLoRepository
 import com.uniquelo.app.data.defaultBagPersistence
 import com.uniquelo.app.data.defaultSnapshotCache
+import com.uniquelo.app.data.defaultThemePersistence
 import com.uniquelo.app.navigation.Router
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,12 +27,14 @@ object AppGraph {
         repository: UniqueLoRepository = SupabaseRepository(),
         cache: SnapshotCache? = defaultSnapshotCache(),
         bagStorage: BagPersistence? = defaultBagPersistence(),
+        themeStorage: ThemePersistence? = defaultThemePersistence(),
     ): RootStore = RootStore(
         catalog = CatalogStore(repository = repository, scope = scope, cache = cache),
         bag = BagStore(bagStorage = bagStorage),
         checkout = CheckoutStore(repository = repository, scope = scope),
         newsletter = NewsletterStore(repository = repository, scope = scope),
         router = Router(),
+        theme = ThemeStore(themeStorage),
         scope = scope,
     )
 }

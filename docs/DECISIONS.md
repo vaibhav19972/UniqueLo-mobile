@@ -18,9 +18,10 @@
 | D-10 | Accepted | Android-first; iOS KMP target must always compile, no iOS app shell yet | — |
 | D-11 | Accepted | Bottom-bar tab list lives in a **top-level** `destinationTabs` val — never inside `Destination`'s companion (and `label` is abstract, not defaulted): ART class-init reentrancy poisons companion-built singleton lists with `null` | landmine 8 |
 | D-12 | Accepted | Adopt backend-agent's `place_order` **v2** + `get_order_details` verbatim (SECURITY DEFINER, pinned search_path, email required, generated-uuid fallback, item fallbacks + quantity clamp) — reviewed + executed on local PG16; Android app contract unchanged; legacy fallback stays | OA-1, A12/A2, landmines 1/2 |
-| D-13 | Accepted | **Interim partial lockdown**: revoke the 6 core catalogue tables now; PRESERVE storage `product-images` uploads + `categories`/`garments`/`collections` writes — the web Admin Studio still runs on the publishable key; full lockdown (D-5/OA-2) completes when Auth is wired | OA-5, P2-2, A13 → superseded same-day by D-15 |
+| D-13 | Superseded | **Interim partial lockdown**: revoke the 6 core catalogue tables now; PRESERVE storage `product-images` uploads + `categories`/`garments`/`collections` writes — the web Admin Studio still runs on the publishable key; full lockdown (D-5/OA-2) completes when Auth is wired | OA-5, P2-2, A13 → superseded same-day by D-15 |
 | D-14 | Accepted | **The web repo is the backend source of truth**: mobile owns no DDL. Nine catalogue + four operational tables; reads via PostgREST embeds; writes via `place_order`/newsletter; `embroidery_details` stays one-to-one (UNIQUE). Schema changes land web-first, then mobile. | D-12, D-13, PROJECT_STATE § Backend contract |
 | D-15 | Accepted | **Authenticated-admin catalogue lockdown** (closes D-5/D-13/OA-2/OA-5): with the Admin Studio on Supabase Auth, catalogue writes are `authenticated`-only — nine-table policy drop + anon revoke + grants/policies + storage upload moved public → `authenticated`; anon keeps read-only storefront access. Opens OA-6 (`authenticated` is not yet an admin gate) | OA-6; OA-2/OA-5 closed |
+| D-16 | Accepted | **Phase 3 design system**: Uniqlo-inspired paper/ink shell + one red accent, self-hosted Satoshi, theme-aware `Palette` (Ink/Paper invert; fixed image/inverse tokens), persisted System/Light/Dark, Android-only shared-element card→PDP, 48dp/contrast/semantics contract | D-15; PROJECT_STATE § Phase 3 |
 
 ---
 
@@ -255,3 +256,62 @@ the storage policies check only `bucket_id` — an ordinary customer account
 would get full catalogue write power. Gate these policies by an admin claim
 or allowlist (custom JWT claim / user-type check inside the policy
 predicates) before public sign-up ships.
+
+## D-16 — Phase 3 design system: Uniqlo shell, Satoshi, 3-state theme (Accepted, 2026-10-23)
+
+**Decision.** Phase 3 replaces the Phase 2 "bone + acid lime + serif" direction
+with a Uniqlo-inspired shell: paper/ink surfaces, one brand-red accent, square
+geometry (2dp shapes, 0dp on imagery), and **Satoshi** as the single typeface
+(light for display, medium for labels/CTAs, normal for body). Universe colours
+from `universes.theme_tokens` tint universe cards/artwork only — they never
+recolour app chrome. The accent is `#D5001C` in light mode and `#FF4D57` in
+dark mode (contrast-checked against both surfaces); `OnAccent` flips with it.
+
+**Theme plumbing.** `UniqueLoColors` gains a composable accessor
+(`Palette`) backed by a `staticCompositionLocalOf`. `Ink`/`Paper` invert in dark
+mode, so screens keep their existing `Palette.X` call sites and become
+theme-aware with no per-screen parameters. Fixed-semantics tokens were added
+for the two cases where inversion is wrong:
+
+- `ImageScrim` / `OnImage` — always black scrim + white text over photography.
+- `InverseSurface` / `OnInverse` / `InverseAccent` — brand-black newsletter
+  panel in both themes, with a red that stays legible on black.
+
+**Appearance preference.** Three states — `System`, `Light`, `Dark` — owned by
+`ThemeStore` and persisted as `theme.txt` in the app-private directory. The file
+is read synchronously when the store is constructed (same accepted OA-4
+trade-off as the cache/journal) so the first frame has the right theme. Writes
+are temp-file → `atomicMove`; a corrupt/missing value falls back to `System`.
+Android system-bar icon appearance follows the resolved theme via a
+`SystemBarsEffect` expect/actual; iOS is a no-op.
+
+**Typography/licence.** Satoshi OTF files are self-hosted in
+`composeApp/src/commonMain/composeResources/font/` and loaded through Compose
+Resources. The ITF Free Font License is checked in at
+`docs/fonts/SATOSHI-FFL.txt`; the fonts are redistributed under that licence,
+not treated as app-owned assets.
+
+**Motion.** Card→PDP uses Compose `SharedTransitionLayout` +
+`AnimatedContent`, with a per-product key (`product-image-$slug`). Android runs
+the shared bounds; iOS keeps the same navigation and cross-fade but skips the
+shared bounds (`supportsSharedElementTransitions = false`). This is
+Android-first delivery with a compile-safe iOS shell, not a missing feature.
+
+**Accessibility contract.** Interactive controls are ≥48dp (back, swatches,
+size chips, steppers, theme choices, CTAs). Selectors use `selectable` with
+`Role.Tab`/`Role.RadioButton`; async success/error text uses `liveRegion`;
+images carry content descriptions; headings are marked. Red text was darkened
+to `#D5001C` in light mode so 10sp labels clear 4.5:1 on paper/bone. Placeholder
+text is full `Muted`, not a low-alpha tint. Control borders use `ControlLine`
+(≥3:1) while `Line` is reserved for decorative dividers/card edges.
+
+**Consequences.**
+
+1. New UI must use semantic tokens; raw `Color.White`/`Black` over imagery or
+   `Rust` on an inverted panel is a review failure (landmines 12–13).
+2. A fourth appearance state or a new persisted preference needs a retention
+   row + survives/forgets tests before implementation.
+3. Font files are binary assets; replacing them is a licence review, not a
+   routine dependency bump.
+4. The Phase 2 screenshots in `README.md` predate this direction; regenerate
+   them when the release build is signed (Phase 5).

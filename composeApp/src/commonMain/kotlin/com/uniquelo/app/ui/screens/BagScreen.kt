@@ -26,10 +26,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.uniquelo.app.model.CartLine
@@ -64,6 +66,7 @@ fun BagScreen(
                     text = "Your bag",
                     style = MaterialTheme.typography.headlineMedium,
                     color = Palette.Ink,
+                    modifier = Modifier.semantics { heading() },
                 )
                 Text(
                     text = "${bag.bagCount} ${if (bag.bagCount == 1) "piece" else "pieces"}".uppercase(),
@@ -120,13 +123,13 @@ private fun BagLine(
                 modifier = Modifier
                     .width(82.dp)
                     .height(104.dp),
-                corner = 3.dp,
+                corner = 0.dp,
             )
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = line.product.name,
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     color = Palette.Ink,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -143,7 +146,7 @@ private fun BagLine(
                 Text(
                     text = line.variant.sku.uppercase(),
                     style = MaterialTheme.typography.labelSmall,
-                    color = Palette.Rust,
+                    color = Palette.Muted,
                 )
                 Spacer(Modifier.height(12.dp))
                 Row(
@@ -168,10 +171,11 @@ private fun BagLine(
             text = "REMOVE",
             style = MaterialTheme.typography.labelSmall,
             color = Palette.Muted,
-            textDecoration = TextDecoration.Underline,
             modifier = Modifier
+                .clip(RoundedCornerShape(2.dp))
+                .semantics { role = Role.Button }
                 .clickable(onClick = onRemove)
-                .padding(vertical = 4.dp),
+                .padding(horizontal = 4.dp, vertical = 17.dp),
         )
         HorizontalDivider(color = Palette.Line)
     }
@@ -186,7 +190,7 @@ private fun QuantityStepper(
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(2.dp))
-            .border(1.dp, Palette.Line, RoundedCornerShape(2.dp))
+            .border(1.dp, Palette.ControlLine, RoundedCornerShape(2.dp))
             .background(Palette.Paper),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -196,7 +200,7 @@ private fun QuantityStepper(
             style = MaterialTheme.typography.labelLarge,
             color = Palette.Ink,
             textAlign = TextAlign.Center,
-            modifier = Modifier.width(30.dp),
+            modifier = Modifier.width(32.dp),
         )
         StepperButton(UiIcon.Plus, label = "Increase quantity", onClick = onIncrement)
     }
@@ -206,7 +210,7 @@ private fun QuantityStepper(
 private fun StepperButton(icon: UiIcon, label: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(48.dp)
             .semantics { contentDescription = label }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -223,8 +227,8 @@ private fun SummaryCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(4.dp))
-            .border(1.dp, Palette.Line, RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(2.dp))
+            .border(1.dp, Palette.Line, RoundedCornerShape(2.dp))
             .background(Palette.Paper)
             .padding(16.dp),
     ) {
@@ -257,15 +261,16 @@ private fun SummaryCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(Palette.Lime)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Palette.Rust)
+                .semantics { role = Role.Button }
                 .clickable(onClick = onCheckout),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = "CHECKOUT",
                 style = MaterialTheme.typography.labelLarge,
-                color = Palette.Ink,
+                color = Palette.OnAccent,
             )
         }
         Spacer(Modifier.height(10.dp))
@@ -333,17 +338,18 @@ private fun EmptyBag(onBrowse: () -> Unit) {
         Spacer(Modifier.height(24.dp))
         Box(
             modifier = Modifier
-                .height(50.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(Palette.Ink)
+                .height(48.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Palette.Rust)
+                .semantics { role = Role.Button }
                 .clickable(onClick = onBrowse)
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 22.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = "ENTER THE WORLDS",
+                text = "SHOP NEW ARRIVALS",
                 style = MaterialTheme.typography.labelLarge,
-                color = Palette.Lime,
+                color = Palette.OnAccent,
             )
         }
     }

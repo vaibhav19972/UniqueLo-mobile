@@ -19,9 +19,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.uniquelo.app.model.Product
+import com.uniquelo.app.ui.productSharedElement
 import com.uniquelo.app.ui.theme.Palette
 
 @Composable
@@ -33,6 +37,7 @@ fun ProductCard(
     Column(
         modifier = modifier
             .clip(MaterialTheme.shapes.small)
+            .semantics { role = Role.Button }
             .clickable(onClick = onClick),
     ) {
         Box {
@@ -40,8 +45,9 @@ fun ProductCard(
                 product = product,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(0.78f),
-                corner = 3.dp,
+                    .aspectRatio(0.82f)
+                    .productSharedElement(product.slug),
+                corner = 0.dp,
             )
             val tag = product.editionLabel ?: product.categoryLabel
             EditionTag(
@@ -54,20 +60,20 @@ fun ProductCard(
                 Text(
                     text = "SOLD OUT",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Palette.Paper,
+                    color = Palette.OnImage,
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(8.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Palette.Ink.copy(alpha = 0.88f))
-                        .padding(horizontal = 7.dp, vertical = 3.dp),
+                        .clip(RoundedCornerShape(0.dp))
+                        .background(Palette.ImageScrim.copy(alpha = 0.88f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                 )
             }
         }
         Spacer(Modifier.height(10.dp))
         Text(
             text = product.name,
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = Palette.Ink,
             minLines = 2,
             maxLines = 2,
@@ -116,10 +122,10 @@ fun EditionTag(
     Text(
         text = text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
-        color = Palette.Ink,
+        color = Palette.OnImage,
         modifier = modifier
-            .clip(RoundedCornerShape(2.dp))
-            .background(Palette.Paper.copy(alpha = 0.92f))
-            .padding(horizontal = 6.dp, vertical = 3.dp),
+            .clip(RoundedCornerShape(0.dp))
+            .background(Palette.ImageScrim.copy(alpha = 0.72f))
+            .padding(horizontal = 7.dp, vertical = 4.dp),
     )
 }

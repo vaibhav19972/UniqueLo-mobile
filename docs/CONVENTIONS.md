@@ -99,3 +99,26 @@ endpoints. Template for snapshot-driven state (cache vs live):
   gone; never leave test data in the shared database.
 - **Preserve web work.** The web repo may have uncommitted user changes. Read
   it; do not rewrite, revert or commit it from a mobile task.
+
+## Rule 8: Theme tokens and accessibility (D-16)
+
+- **`Palette` is theme-aware.** `Ink`/`Paper` invert in dark mode; never treat
+  them as fixed black/white. Over photography use `ImageScrim` + `OnImage`.
+  For a panel that must stay brand-black in both themes use `InverseSurface` +
+  `OnInverse` + `InverseAccent`.
+- **Accent contrast.** `Rust` is the red; pair it with `OnAccent` for fills.
+  Red text on paper/bone is `#D5001C` in light mode (≥4.5:1) and `#FF4D57` in
+  dark. Do not put `Rust` text on an inverted panel; use `InverseAccent`.
+- **Touch targets ≥48dp** for every interactive control. Plain `clickable`
+  does not enforce this; size the hit area explicitly.
+- **Semantics are part of the control.** Use `selectable` with
+  `Role.Tab`/`Role.RadioButton` for selectors; `liveRegion` for async
+  success/error; `heading()` for screen titles; `contentDescription` for
+  icon-only controls and images. A button that has no action must not claim
+  `Role.Button`.
+- **New retained state goes in the retention matrix first.** Appearance is the
+  current example: `ThemeStore` + `theme.txt`, with both a restore test and a
+  corrupt-file fallback test.
+- **Fonts are licensed assets.** Satoshi is self-hosted under the ITF Free Font
+  License (`docs/fonts/SATOSHI-FFL.txt`); a font swap is a licence review, not
+  a silent asset replacement.

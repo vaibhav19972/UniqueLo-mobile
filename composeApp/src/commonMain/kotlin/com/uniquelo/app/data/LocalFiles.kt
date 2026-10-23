@@ -30,3 +30,8 @@ internal fun defaultSnapshotCache(): SnapshotCache? = runCatching {
 internal fun defaultBagPersistence(): BagPersistence? = runCatching {
     appFilesPath()?.let(::OkioBagPersistence)
 }.getOrNull()
+
+/** Disk-backed appearance preference when the platform allows it, else null. */
+internal fun defaultThemePersistence(): ThemePersistence? = runCatching {
+    appFilesPath()?.let(::OkioThemePersistence)
+}.getOrNull()

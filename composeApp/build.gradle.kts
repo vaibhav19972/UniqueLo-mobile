@@ -32,6 +32,7 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
+            implementation(compose.components.resources)
 
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
@@ -60,6 +61,10 @@ kotlin {
             implementation(libs.okio.fakefilesystem)
         }
     }
+}
+
+compose.resources {
+    packageOfResClass = "com.uniquelo.app.resources"
 }
 
 android {
