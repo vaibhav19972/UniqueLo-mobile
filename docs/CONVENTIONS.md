@@ -41,7 +41,7 @@
 `jsonb_populate_record` DEFAULTs, RLS-shadowed `RETURNING`, privilege edges —
 static review misses all three. **Any migration must be executed against real
 DDL (local Postgres or Supabase) before its commit lands**, even when the
-hosted deployment stays a human action (OA-1/OA-2). If no engine was available,
+hosted deployment stays a human action (OA-2/OA-5). If no engine was available,
 the commit is *not done*; record that in PROJECT_STATE instead of claiming it.
 
 ## Rule 2: Enumerate cross-snapshot edge cases (A3/A4)
@@ -86,3 +86,16 @@ endpoints. Template for snapshot-driven state (cache vs live):
 - Update `gradle/libs.versions.toml` only via PR-style isolated commit.
 - Kotlin/AGP/lint version notes that affect checking go into PROJECT_STATE
   landmines (see OA-3 before trusting lint's Kotlin static analysis).
+
+## Rule 7: The web repo owns the backend (D-14)
+
+- **No mobile DDL.** Read `/Users/apple/MySpace/UniqueLo/supabase/schema.sql`
+  and its migrations before changing any DTO, query or embedding. Schema
+  changes are web-first, hosted second, mobile third.
+- **Mirror the table inventory.** The nine-table lockdown array/`REVOKE` list is
+  a claim about the web schema; a new catalogue table is a two-repo change.
+- **Probe hosted state honestly.** Record the date and result in
+  `PROJECT_STATE.md`. If a probe writes, delete the probe row and verify it is
+  gone; never leave test data in the shared database.
+- **Preserve web work.** The web repo may have uncommitted user changes. Read
+  it; do not rewrite, revert or commit it from a mobile task.

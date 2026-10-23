@@ -8,6 +8,11 @@ pass.
 deployment action and one security decision remain before Phase 2 is declared
 green.
 
+> **Post-audit addendum (2026-10-23).** Historical snapshot. A12/OA-1 is now
+> **closed**: `place_order` v2 (`SECURITY DEFINER`) and `get_order_details` are
+> deployed and live-verified (D-12). The `SECURITY INVOKER` analysis below
+> describes v1 only. Current state: `PROJECT_STATE.md`.
+
 ## Method
 
 - Read every Phase 1 code, SQL, test and doc change against the baseline commit

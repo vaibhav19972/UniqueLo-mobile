@@ -14,7 +14,7 @@
 | 1 | Defects & safety: rotation/process-death survival, offline-first cache, bag journal, atomic orders, saveable UI state | ✅ code complete & audited; OA-1 deployed + live-verified; OA-2 **interim** (D-13); completion = OA-5 |
 | 1-audit | Independent audit + fixes (`docs/phase-1-audit.md`) | ✅ `590cd3f` — 24 passed / 1 skipped, verified |
 | **2** | **Architecture: type-safe navigation, store split (Catalog/Bag/Checkout/Newsletter), DI graph, CI pipeline** | ✅ `6840046` + `37937a0` + `76f91af` ; docs+SQL `78a5d6b` ; crash fix `ef321c6` ; audit fixes `9c5dcc4` (`docs/phase-2-audit.md`) |
-| 3 | Design elevation: Uniqlo-inspired redesign (clean white, minimal type, red accent, LifeWear voice), dark theme, brand fonts, shared-element card→PDP, a11y | ⏳ |
+| 3 | Design elevation: Uniqlo-inspired redesign (clean white, minimal type, red accent, LifeWear voice), dark theme, brand fonts, shared-element card→PDP, a11y | ⏳ next — can start now; OA-2/OA-5 remain release gates, not design dependencies |
 | 4 | Commerce: wishlist, order history (auth), review submission, stock validation, payments decision | ⏳ |
 | 5 | Release engineering: signed builds, R8 map, icons/splash, deep links (incl. iOS shell) | ⏳ |
 
@@ -23,10 +23,72 @@
 | ID | Source | Action | Status |
 |---|---|---|---|
 | OA-1 | A12 | ~~Deploy `place_order_fn.sql` **v2**~~ **CLOSED**. Live-verified 2026-10-23 via publishable-key REST (read + rollback probes only, nothing written): named-args call → **400 `22023`** items-guard; `get_order_details` bad uuid → 400 `22P02`, stranger email → 200 `null`; junk-uuid-item probe → 400 **and** follow-up lookup → `null` ⇒ atomic rollback confirmed on the hosted project. Verify-form note: `{}` alone binds no args → `PGRST202` is *expected*, not a failure; use `{"p_order":{},"p_items":"[]"}` | **CLOSED — deployed + live-verified** |
-| OA-2 | A13 | ~~Full lockdown now~~ **PAUSED by D-13**: the web Admin Studio (`web repo src/pages/Admin.tsx`) writes via the publishable key — product-images storage uploads + `categories`/`garments`/`collections` upserts — and the full file breaks both. Interim instead: revoke the 6 core tables (products, variants, product_images, embroidery_details, universes, motifs) via `20260103000000_lockdown_interim.sql`; the full file stays in the repo as the OA-5 completion artifact | **PARTIAL — interim paste-run pending by owner; completion = OA-5** |
+| OA-2 | A13 | ~~Full lockdown now~~ **PAUSED by D-13**: the web Admin Studio (`web repo src/pages/Admin.tsx`) writes via the publishable key — product-images storage uploads + `categories`/`garments`/`collections` upserts — and the full file breaks both. Interim instead: revoke the 6 core tables (products, variants, product_images, embroidery_details, universes, motifs) via `20260103000000_lockdown_interim.sql`; the full file stays in the repo as the OA-5 completion artifact | **PARTIAL — interim paste-run pending by owner; completion = OA-5**. Live probe 2026-10-23: anon `garments` INSERT → `201` (core writes still open; probe row deleted) |
 | OA-3 | A17 | AGP 8.13.2 lint analyser is a Kotlin 2.2 reader against 2.4.21 metadata — Kotlin static checks inside lint may be incomplete. Revisit when toolchain upgrades to AGP 9.x | OPEN — revisit later |
 | OA-4 | A16 | Cache/journal are read synchronously in the Store constructor (UI thread). Acceptable at MVP scale; revisit at catalogue scale | ACCEPTED (recorded) |
 | OA-5 | D-13 | When an authenticated admin gate lands on web `/admin` (or Admin Studio moves to service-role credentials): deploy the **full** `20260102000000_lock_catalogue_writes.sql` — drops taxonomy grants (categories/collections/garments) + the product-images upload policy + all permissive demo policies on the 9 tables (supersedes the interim revoke; Admin-Studio anon writes break **by design**). Verify with the file's 2 sanity queries (both → 0 rows) | OPEN — trigger: Supabase Auth / admin gate wired |
+
+## Backend contract (shared with the web project)
+
+The mobile app does **not** own database DDL. The authoritative backend is the
+web repository:
+
+- `/Users/apple/MySpace/UniqueLo/supabase/schema.sql` — tables, indexes, RLS,
+  storage bucket
+- `supabase/migrations/20261013_taxonomy_columns.sql` — taxonomy columns
+- `supabase/production-seed.sql` / `supabase/seed.sql` — hosted catalogue data
+- Hosted project: `https://heimnfjuwmmmejqcjbbd.supabase.co`
+
+Any schema change lands in the web repo first, is applied to the hosted
+project, and then is reflected here (DTO/mapping/docs) in the same change set.
+Never add mobile-only tables or columns. The web repo may contain uncommitted
+user work; mobile tasks must not rewrite it.
+
+**Tables (13).** Nine catalogue tables — `universes`, `motifs`, `categories`,
+`garments`, `collections`, `products`, `variants`, `product_images`,
+`embroidery_details` — plus `reviews`, `newsletter_subscribers`, `orders`,
+`order_items`.
+
+**Mobile surface.** Reads `universes`, `categories`, `collections`, `motifs`,
+`reviews`, and `products` embedded with `variants`, `product_images`,
+`embroidery_details`. Writes `rpc/place_order` (preferred), the legacy
+`orders` + `order_items` pair (fallback only), and `newsletter_subscribers`.
+`orders` has no public SELECT; use `get_order_details` if order lookup is ever
+needed.
+
+**Live verification (2026-10-23, publishable-key REST, read-only except one
+probe row that was deleted):**
+
+| Check | Result |
+|---|---|
+| Public catalogue reads | `200`; 10 products, 37 variants, 58 images, 10 embroidery rows, 3 universes, 7 motifs, 5 categories, 9 garments, 3 collections, 2 reviews |
+| `place_order` v2 | live — empty items → `400 22023`; header+items rollback verified |
+| `get_order_details` | live — bad uuid → `400 22P02` |
+| `embroidery_details` embed | returned as an **object**, not an array (see invariant below) |
+| `products.intensity` | **absent** (`400 42703`) — web taxonomy migration not applied to hosted |
+| Interim lockdown (D-13) | **not applied** — anon `garments` INSERT → `201`; probe row `__audit_probe__` deleted immediately, no net data change |
+
+**Fragile invariants (break the mobile app if violated):**
+
+1. `embroidery_details.product_slug` must stay **UNIQUE**. PostgREST then
+   embeds it as a one-to-one object; `EmbroideryDto?` expects an object. If the
+   constraint is dropped, the embed becomes an array and catalogue decoding
+   fails. The web adapter tolerates both shapes; the mobile DTO does not
+   (landmine 11).
+2. The nine-table inventory feeds the lockdown array and `REVOKE` list. A new
+   catalogue table without a lockdown entry reopens anonymous writes.
+3. Mobile uses `select=*`; new columns are ignored safely
+   (`ignoreUnknownKeys = true`), but new **non-null** columns need DTO
+   defaults/mapping before they are used.
+
+**Web-owned drift (does not block mobile):**
+
+- `products.intensity` is in the web migration but absent from the hosted DB;
+  the web adapter falls back to `expression_score`, and mobile does not read it.
+- The hosted catalogue is still publicly writable until OA-2/OA-5 (above).
+- The web Admin Studio keeps `categories`/`garments`/`collections` and
+  `product-images` uploads on the publishable key; that is why D-13 pauses the
+  full lockdown.
 
 ## Current architecture (Phase 2 target)
 
@@ -85,6 +147,9 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
 | 2026-10-23 | `9c5dcc4` | assembleDebug / lintDebug / iOS target | pass / 0 errors, 12 warnings (OA-3 unchanged) / pass |
 | 2026-10-23 | `9c5dcc4` | lockdown re-run on **full** `schema.sql` + Supabase-style grants (PG 16.15) | 23 catalogue write policies on nine tables **+ public `product-images` upload policy** dropped; idempotent; anon SELECT retained; anon catalogue writes denied; guest orders/order_items/newsletter and `place_order` still work |
 | 2026-10-23 | `9c5dcc4` | system back during/after checkout | regression fixed + 3 tests: submitting cannot pop; back abandons the session; back after success closes it |
+
+| 2026-10-23 | docs audit | shared-backend consistency pass against `/Users/apple/MySpace/UniqueLo` (`schema.sql`, taxonomy migration, seeds, `data.ts`, `Admin.tsx`) | schema/table/column/embed contract matches mobile DTOs; **9 catalogue + 4 operational tables** confirmed; mobile owns no DDL (D-14). Web-owned drift recorded: hosted lacks `products.intensity` (migration `20261013` unapplied) |
+| 2026-10-23 | docs audit | hosted backend probes (publishable key, read-only except one probe row that was deleted) | `place_order` → `22023`; `get_order_details` → `22P02`; `embroidery_details` embeds as object; anon `garments` INSERT → `201` ⇒ interim lockdown not applied; probe row deleted, no net data change |
 
 > The earlier `8/8` lockdown row was a reduced eight-table fixture. The
 > authoritative full-schema result is the `9c5dcc4` row above: the real
@@ -157,3 +222,8 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
     insert/update/delete policies live even though the eight listed tables were
     locked. When the schema gains a catalogue table, add it to the array and
     the `REVOKE` list, then re-run the verification queries (P2-2).
+11. **`embroidery_details.product_slug` must stay UNIQUE.** PostgREST uses the
+    unique constraint to treat the embed as one-to-one and returns an object;
+    `ProductDto.embroideryDetails` is a nullable object. Drop the constraint and
+    the same query returns an array, so catalogue decoding fails at runtime.
+    The web adapter accepts both shapes; mobile does not (D-14).

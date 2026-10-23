@@ -12,14 +12,22 @@ schema described below.
 ## Project status (audited 2026-10-23)
 
 Phase 1 (offline-first state, atomic order SQL) and Phase 2 (typed navigation,
-store split, DI, CI, catalogue lockdown SQL) are code-complete and audited. Two
-deployment actions remain, both requiring Supabase dashboard access:
+store split, DI, CI, catalogue lockdown SQL) are code-complete and audited.
 
-- The `place_order` migration is committed but **not applied** to the hosted
-  project. Until it is applied, checkout uses the legacy two-call fallback.
-- The catalogue-write lockdown is committed and verified on local PostgreSQL,
-  but **not applied**. Until it is applied the public write policies remain
-  live. See [RLS warning](#rls-warning).
+The backend is **shared with the web project** at
+`/Users/apple/MySpace/UniqueLo`: its `supabase/schema.sql`, migrations and seeds
+are the schema source of truth (D-14). The mobile app owns no DDL. The contract
+and current hosted drift are recorded in
+[`PROJECT_STATE.md` § Backend contract](docs/PROJECT_STATE.md#backend-contract-shared-with-the-web-project).
+
+Deployment state:
+
+- **OA-1 closed** — `place_order` v2 and `get_order_details` are applied and
+  live-verified on the hosted project; checkout uses the atomic RPC.
+- **OA-2 interim (D-13)** — the full lockdown is deliberately paused because
+  the web Admin Studio still writes with the publishable key. The interim
+  six-table revoke is committed but **not yet applied**; the core catalogue is
+  still publicly writable. See [RLS warning](#rls-warning).
 
 Evidence: [`phase-1-audit.md`](docs/phase-1-audit.md),
 [`phase-2-audit.md`](docs/phase-2-audit.md). The shared source of truth is
@@ -116,10 +124,13 @@ role. It also omits `created_at` from the column list so the table default
 applies — `jsonb_populate_record` fills missing keys with `NULL`, it does not
 apply defaults.
 
-**Deployment status:** the hosted project returns `PGRST202` for
-`/rpc/place_order` (probed 2026-10-23), so checkout currently uses the fallback.
-Apply the migration once in the Supabase SQL editor or with `supabase db push`
-before treating the atomic path as live.
+**Deployment status (2026-10-23):** `place_order` v2 is **live** on the hosted
+project (OA-1 closed). A named-args call with an empty items array returns the
+`22023` guard, and a forced item failure rolls the header back — both verified
+against the hosted database. v2 is `SECURITY DEFINER` with a pinned
+`search_path`, so the atomic write no longer depends on the guest `INSERT`
+policies. The legacy fallback remains for any environment where the RPC is not
+deployed.
 
 ## UI state preservation
 
@@ -211,18 +222,29 @@ therefore modify the catalogue. A safe probe (an intentionally invalid
 `products` insert) reaches the table's NOT NULL constraint instead of being
 rejected by RLS, which confirms the policy is open.
 
-[`supabase/migrations/20260102000000_lock_catalogue_writes.sql`](supabase/migrations/20260102000000_lock_catalogue_writes.sql)
-drops every public/anon/authenticated write policy on those tables, revokes
+The **full** lockdown
+([`20260102000000_lock_catalogue_writes.sql`](supabase/migrations/20260102000000_lock_catalogue_writes.sql))
+drops every public/anon/authenticated write policy on the nine tables, revokes
 `INSERT`/`UPDATE`/`DELETE` from `anon` and `authenticated`, and removes the demo
 policy that allows public uploads to the `product-images` bucket. It keeps
 public `SELECT` and the guest order / order-item / newsletter / review `INSERT`
-policies, so checkout keeps working (including the `SECURITY INVOKER`
-`place_order` function). Admin edits will use `service_role`.
+policies, so checkout keeps working (`place_order` is `SECURITY DEFINER` and
+does not need them). Admin edits will use `service_role`.
 
-Executed against the real DDL on local PostgreSQL 16, but **still not applied to
-the hosted project**, so the hole is live until OA-2 is done. After applying it,
-run the verification queries at the bottom of the migration file (expected: no
-client write policies on the nine catalogue tables).
+That file is **paused** (D-13) because the web Admin Studio still uploads
+product photography and upserts `categories`/`garments`/`collections` under the
+publishable key. The shipped interim
+([`20260103000000_lockdown_interim.sql`](supabase/migrations/20260103000000_lockdown_interim.sql))
+revokes writes on the six core tables (`products`, `variants`,
+`product_images`, `embroidery_details`, `universes`, `motifs`) and deliberately
+leaves the Admin Studio paths working.
+
+As of 2026-10-23 the interim is **not applied**: a type-valid anonymous
+`garments` insert returned `201` (the probe row was deleted immediately), and a
+`products` insert still reached its NOT NULL constraint. The core catalogue is
+therefore still publicly writable. Once an authenticated admin gate lands,
+deploy the full file (OA-5) and run its two verification queries (expected: no
+client write policies on the nine catalogue tables, no public upload policy).
 
 ## Stack
 
@@ -268,8 +290,9 @@ composeApp/src/
   commonTest/                      Router/RootStore/BagStore/CatalogStore/
                                    LocalPersistence tests + ignored live test
 supabase/migrations/
-  20260101000000_place_order_fn.sql       atomic orders SQL
-  20260102000000_lock_catalogue_writes.sql  catalogue write lockdown
+  20260101000000_place_order_fn.sql       atomic orders SQL (v2, live)
+  20260102000000_lock_catalogue_writes.sql  full catalogue lockdown (paused, OA-5)
+  20260103000000_lockdown_interim.sql     interim six-table revoke (D-13)
 docs/
   PROJECT_STATE.md, DECISIONS.md, CONVENTIONS.md
   phase-1-audit.md, phase-2-audit.md      findings + evidence
@@ -307,11 +330,13 @@ iOS framework (optional, no Xcode shell included):
 
 ## Design direction
 
-Bone paper, ink, acid lime and rust; serif display type against wide-tracked
-uppercase labels; square-ish 4dp corners. Universe cards borrow their colours
-from `universes.theme_tokens`, so each world changes the palette of the feed
-without hardcoded theme objects. Batch numbers (`Batch 01 / 50`) are treated as
-part of the product identity.
+**Current (Phase 2) direction:** bone paper, ink, acid lime and rust; serif
+display type against wide-tracked uppercase labels; square-ish 4dp corners.
+Universe cards borrow their colours from `universes.theme_tokens`, so each world
+changes the palette of the feed without hardcoded theme objects. Batch numbers
+(`Batch 01 / 50`) are treated as part of the product identity. Phase 3 is a
+deliberate design pass and will supersede this section once its direction is
+agreed.
 
 ## Verification
 
@@ -323,6 +348,10 @@ part of the product identity.
   and the v26 adaptive-icon folder; see OA-3)
 - Live catalogue decode verified against the project: 10 products, 3 universes,
   variants, remote images, embroidery details and reviews map correctly
+- Shared-backend contract verified against the web repo + hosted project
+  (2026-10-23): 13 tables, `place_order` live, one-to-one embroidery embed;
+  current drift and the fragile invariants are in
+  [`PROJECT_STATE.md`](docs/PROJECT_STATE.md#backend-contract-shared-with-the-web-project)
 - `:composeApp:compileKotlinIosSimulatorArm64` — passes with the Darwin engine
 - `place_order` executed against a local PostgreSQL 16 instance with the real
   `orders` / `order_items` schema and anon-style RLS: `created_at` default is
@@ -342,12 +371,15 @@ part of the product identity.
 
 ## Open actions / next gates
 
-- [ ] **OA-1** — apply
-      `supabase/migrations/20260101000000_place_order_fn.sql` and verify
-      `/rpc/place_order` no longer returns `PGRST202`.
-- [ ] **OA-2** — apply
-      `supabase/migrations/20260102000000_lock_catalogue_writes.sql`, then run
-      its verification queries in the dashboard.
+- [x] **OA-1** — `place_order` v2 + `get_order_details` applied and verified
+      live on the hosted project.
+- [ ] **OA-2** — apply the interim
+      `20260103000000_lockdown_interim.sql`, then confirm an anonymous
+      `products`/`garments` write flips to permission denied.
+- [ ] **OA-5** — once web `/admin` is authenticated (or uses service-role
+      credentials), apply the full
+      `20260102000000_lock_catalogue_writes.sql` and run its verification
+      queries.
 - [ ] **OA-3** — revisit lint's Kotlin analyser when the toolchain moves to
       AGP 9.x (currently a Kotlin 2.2 reader against 2.4.21 metadata).
 - [ ] **D-6** — add server-trusted pricing/stock validation before real

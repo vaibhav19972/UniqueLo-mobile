@@ -19,6 +19,7 @@
 | D-11 | Accepted | Bottom-bar tab list lives in a **top-level** `destinationTabs` val — never inside `Destination`'s companion (and `label` is abstract, not defaulted): ART class-init reentrancy poisons companion-built singleton lists with `null` | landmine 8 |
 | D-12 | Accepted | Adopt backend-agent's `place_order` **v2** + `get_order_details` verbatim (SECURITY DEFINER, pinned search_path, email required, generated-uuid fallback, item fallbacks + quantity clamp) — reviewed + executed on local PG16; Android app contract unchanged; legacy fallback stays | OA-1, A12/A2, landmines 1/2 |
 | D-13 | Accepted | **Interim partial lockdown**: revoke the 6 core catalogue tables now; PRESERVE storage `product-images` uploads + `categories`/`garments`/`collections` writes — the web Admin Studio still runs on the publishable key; full lockdown (D-5/OA-2) completes when Auth is wired | OA-5, P2-2, A13 |
+| D-14 | Accepted | **The web repo is the backend source of truth**: mobile owns no DDL. Nine catalogue + four operational tables; reads via PostgREST embeds; writes via `place_order`/newsletter; `embroidery_details` stays one-to-one (UNIQUE). Schema changes land web-first, then mobile. | D-12, D-13, PROJECT_STATE § Backend contract |
 
 ---
 
@@ -91,6 +92,11 @@ any of those three roles across all nine tables, revokes from both client roles
 and drops the upload policy (guarded, because bare local PG has no `storage`
 schema). Public SELECT and guest order/order-item/newsletter/review INSERT
 remain. Admin writes use `service_role`.
+
+**Deployment timing superseded by D-13.** The scope above still stands, but the
+full file must not be deployed while the web Admin Studio writes with the
+publishable key. The interim revoke runs first (OA-2); the full file becomes
+the OA-5 completion artifact.
 
 ## D-8 — Hand-rolled DI (Accepted, Phase 2)
 
@@ -165,7 +171,10 @@ anonymous uploads into the bucket (file-hosting abuse on project quota) and
 taxonomy defacement (labels/imagery via `categories.image`,
 `collections.cover_image`) remain possible — cosmetic/abuse-level, not
 buyer-facing transactional data. Baseline probes (2026-10-23) confirmed grants
-were live pre-run (anon INSERT on `products`/`garments` → `23502`).
+were live pre-run (anon INSERT on `products`/`garments` → `23502`). A later
+re-probe the same day returned `201` for a type-valid anon `garments` insert
+(the probe row was deleted immediately), confirming the interim had **not** been
+applied yet.
 
 **Completion trigger (OA-5).** The moment `/admin` authenticates (Supabase
 Auth or moved to service-role credentials), deploy the full `20260102` file in
@@ -173,3 +182,42 @@ full/idempotent — it supersedes the interim's revokes, drops all permissive
 demo policies and the upload policy; Admin-Studio anon writes then fail **by
 design** and the flow must move to the authenticated role. The full file stays
 in the repo as the completion artifact with a DO-NOT-DEPLOY-until-then banner.
+
+## D-14 — The web repo owns the backend schema (Accepted, pre-Phase-3)
+
+**Decision.** `/Users/apple/MySpace/UniqueLo` is the single source of truth for
+the Supabase schema, migrations, seeds, RLS and admin write paths. The mobile
+repo consumes that backend through PostgREST and does **not** create tables,
+columns, policies or functions. Backend changes are web-first: edit and execute
+them in the web repo, apply them to the hosted project, then update the mobile
+DTOs/mappers/docs in the same change set.
+
+**Contract.**
+
+- **13 tables.** Nine catalogue (`universes`, `motifs`, `categories`,
+  `garments`, `collections`, `products`, `variants`, `product_images`,
+  `embroidery_details`) plus four operational (`reviews`,
+  `newsletter_subscribers`, `orders`, `order_items`).
+- **Reads.** `universes`, `categories`, `collections`, `motifs`, `reviews`, and
+  `products` with `variants`, `product_images`, `embroidery_details` embedded.
+- **Writes.** `rpc/place_order` (preferred), legacy `orders` + `order_items`
+  (fallback only), `newsletter_subscribers`.
+- **Cardinality invariant.** `embroidery_details.product_slug` stays UNIQUE so
+  PostgREST embeds an object; the mobile DTO depends on it (landmine 11).
+
+**Why.** Two clients share one database. A mobile-side migration would fork the
+schema, make RLS/lockdown scope unverifiable, and let the two storefronts drift.
+The web repo already holds the DDL, production seed and the Admin Studio code
+whose write paths determine what the lockdown may revoke.
+
+**Consequences.**
+
+1. The mobile lockdown table list and `REVOKE` list mirror the web schema; a new
+   catalogue table is a two-repo change.
+2. The hosted project can lag the web repo. Record live drift in
+   `PROJECT_STATE.md` § Backend contract instead of assuming `schema.sql` is
+   deployed (current example: `products.intensity`).
+3. The web repo may contain uncommitted user work. Mobile tasks read it but
+   never overwrite it.
+4. If a backend change requires a mobile code change, the mobile commit cites
+   the web-side change and does not claim to have applied it.

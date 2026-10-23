@@ -8,6 +8,16 @@ the Phase 1 audit and the live hosted project. **Fixes:** `9c5dcc4`.
 apply, after the two scope/behaviour fixes below. Phase 3 can start once OA-1
 and OA-2 are applied by someone with Supabase dashboard access.
 
+> **Post-audit addendum (2026-10-23, after `fcd8c99`).** Historical snapshot.
+> OA-1 is **closed** (v2 live); D-12 replaced the v1 `SECURITY INVOKER` function
+> with a `SECURITY DEFINER` one. D-13 **pauses** the full lockdown in favour of
+> the interim six-table revoke (OA-2, still not applied; OA-5 completes it) so
+> the web Admin Studio keeps working. Statements below that `place_order` is
+> undeployed / `SECURITY INVOKER`, or that the full lockdown is the next deploy,
+> are superseded. Current state: `PROJECT_STATE.md` § Backend contract.
+> Phase 3 design work can start now; OA-2 is a release/security gate, not a
+> design dependency.
+
 ## Method
 
 - Read every Phase 2 code, test, SQL and doc change against `590cd3f`.
