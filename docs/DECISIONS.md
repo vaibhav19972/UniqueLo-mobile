@@ -17,6 +17,7 @@
 | D-9 | Accepted | CI = GitHub Actions, macOS runner, full matrix (assemble + unit + lint + iOS target) | — |
 | D-10 | Accepted | Android-first; iOS KMP target must always compile, no iOS app shell yet | — |
 | D-11 | Accepted | Bottom-bar tab list lives in a **top-level** `destinationTabs` val — never inside `Destination`'s companion (and `label` is abstract, not defaulted): ART class-init reentrancy poisons companion-built singleton lists with `null` | landmine 8 |
+| D-12 | Accepted | Adopt backend-agent's `place_order` **v2** + `get_order_details` verbatim (SECURITY DEFINER, pinned search_path, email required, generated-uuid fallback, item fallbacks + quantity clamp) — reviewed + executed on local PG16; Android app contract unchanged; legacy fallback stays | OA-1, A12/A2, landmines 1/2 |
 
 ---
 
@@ -106,3 +107,32 @@ more than the three fakes they already can.
 Runs: `assembleDebug`, `testDebugUnitTest`, `lintDebug`,
 `compileKotlinIosSimulatorArm64`. Lint's metadata noise is tracked (OA-3) —
 the pipeline gates on exit codes only.
+
+## D-12 — place_order v2 + guest order lookup (Accepted, pre-Phase-3)
+
+**Decision.** The backend agent's hardened `place_order(p_order, p_items)` and
+new `get_order_details(p_order_id, p_email)`, shipped **verbatim** into
+`supabase/migrations/20260101000000_place_order_fn.sql` (v1 in the same file's
+history was never deployed, so the migration number stays).
+
+**Why.** The hosted backend has no authentication (guest-only web/mobile), so
+the write path must be callable by `anon` safely. v2's `SECURITY DEFINER`
++ `search_path = public, pg_temp` makes the atomic write independent of anon
+INSERT policies; client-supplied UUIDs still give PK-level retry dedupe;
+missing email is rejected; item fields get fallbacks and quantity ≥ 1.
+`get_order_details` is the sanctioned read into `orders` (no public SELECT,
+landmine 2) gated by email match — usable by a future web client for order
+status; the Android app still doesn't call it (Phase 4 candidate).
+
+**Verification (Rule 1).** Live hosted columns introspected via read-only REST
+probes; SQL executed on local PG 16.15 clone `uniquelo_clone`: full battery
+(documented in PROJECT_STATE verification history). Deployed-parity checks the
+human runner should see: `POST /rest/v1/rpc/place_order` with `{}` →
+**400 `22023`** (not `PGRST202`), matching the items-first guard order.
+
+**Limits kept from v1 contract.** `status` remains client-suggested inside the
+app's trusted shape ('reserved'); server-owned pricing/validation stays with
+D-6/D-7 (payments trigger). Response body remains unused by the Android app —
+extra response fields are safe. Known nuance: only `id` falls back on empty
+string; other text fields treat '' as a value (harmless for our app, which
+always sends catalogue-backed strings).
