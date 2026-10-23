@@ -4,8 +4,10 @@ import com.uniquelo.app.data.CheckoutForm
 import com.uniquelo.app.data.SavedLine
 import com.uniquelo.app.navigation.Destination
 import com.uniquelo.app.state.OrderState
+import kotlinx.coroutines.CompletableDeferred
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -144,6 +146,66 @@ class RootStoreTest {
         assertTrue(root.checkout.checkoutOpen)
     }
 
+    /**
+     * System back is a shell concern, but it must use the same guarded close as
+     * the on-screen back button. Calling `router.back()` directly popped the
+     * overlay while leaving `checkoutOpen = true`, making checkout unreachable
+     * until process death.
+     */
+    @Test
+    fun systemBackOnCheckoutAbandonsSessionAndReturnsToTab() {
+        val root = rootForTest()
+        root.bag.add(kurta, kurta.variants.first())
+        root.requestCheckout()
+        val session = root.checkout.checkoutSession
+
+        root.onBack()
+
+        assertEquals(Destination.Discover, root.router.current)
+        assertFalse(root.checkout.checkoutOpen)
+        assertEquals(OrderState.Idle, root.checkout.orderState)
+
+        // Reopening starts a fresh session instead of reviving the abandoned one.
+        root.requestCheckout()
+        assertEquals(session + 1, root.checkout.checkoutSession)
+    }
+
+    @Test
+    fun systemBackCannotPopSubmittingCheckout() {
+        val gate = CompletableDeferred<Unit>()
+        val repository = FakeRepository(snapshot()).apply { orderGate = gate }
+        val root = rootForTest(repository = repository)
+        root.bag.add(kurta, kurta.variants.first())
+        root.requestCheckout()
+        root.submitOrder(checkoutForm())
+
+        assertTrue(root.checkout.orderState is OrderState.Submitting)
+
+        root.onBack()
+
+        assertEquals(Destination.Checkout, root.router.current)
+        assertTrue(root.checkout.checkoutOpen)
+        assertTrue(root.checkout.orderState is OrderState.Submitting)
+
+        gate.complete(Unit)
+        assertTrue(root.checkout.orderState is OrderState.Success)
+    }
+
+    @Test
+    fun systemBackAfterSuccessClosesCheckoutSession() {
+        val root = rootForTest()
+        root.bag.add(kurta, kurta.variants.first())
+        root.requestCheckout()
+        root.submitOrder(checkoutForm())
+        assertTrue(root.checkout.orderState is OrderState.Success)
+
+        root.onBack()
+
+        assertEquals(Destination.Discover, root.router.current)
+        assertFalse(root.checkout.checkoutOpen)
+        assertEquals(OrderState.Idle, root.checkout.orderState)
+    }
+
     @Test
     fun requestingCheckoutWithEmptyBagIsRejected() {
         val root = rootForTest()
@@ -232,4 +294,12 @@ class RootStoreTest {
         assertEquals(listOf(SavedLine("kurta", "kurta-s", 1)), journal.saved)
         assertEquals(1, root.bag.lines.size)
     }
+
+    private fun checkoutForm() = CheckoutForm(
+        name = "QA",
+        email = "qa@uniquelo.app",
+        addressLine = "12 Craft Lane",
+        city = "Jaipur",
+        postalCode = "302001",
+    )
 }

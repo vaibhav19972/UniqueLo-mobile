@@ -1,11 +1,15 @@
 name: CI
 
-# Phase 2 verification matrix (docs/CONVENTIONS.md) on every push/PR to main.
+# Phase 2 verification matrix (docs/CONVENTIONS.md) on every push to main and
+# every pull request.
 # macOS is required for the iOS compile target (D-10: iOS must always compile).
 on:
   push:
     branches: [main]
   pull_request:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -15,6 +19,7 @@ jobs:
   verify:
     name: Android build + tests + lint + iOS target (macOS)
     runs-on: macos-latest
+    timeout-minutes: 45
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -28,9 +33,9 @@ jobs:
       - name: Set up Gradle (with caching)
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Accept Android licences
-        run: yes | command -v sdkmanager >/dev/null 2>&1 && true || true
-
+      # The macOS runner image pre-installs the Android SDK with licences
+      # accepted; a fake "accept licences" step would hide a missing SDK
+      # instead of letting assembleDebug fail loudly.
       - name: Build + test + lint + iOS compile
         run: ./gradlew --console=plain :composeApp:assembleDebug :composeApp:testDebugUnitTest :composeApp:lintDebug :composeApp:compileKotlinIosSimulatorArm64
 

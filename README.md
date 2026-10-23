@@ -9,15 +9,21 @@ The project started as a structural rebuild of a decompiled Nike Android app
 The catalogue, imagery, craft stories and orders now come from the Supabase
 schema described below.
 
-## Phase 1 status (audited 2026-10-23)
+## Project status (audited 2026-10-23)
 
-Offline-first local state and atomic order SQL are implemented and verified.
-Two items are called out before Phase 2:
+Phase 1 (offline-first state, atomic order SQL) and Phase 2 (typed navigation,
+store split, DI, CI, catalogue lockdown SQL) are code-complete and audited. Two
+deployment actions remain, both requiring Supabase dashboard access:
 
 - The `place_order` migration is committed but **not applied** to the hosted
-  project yet. Until it is applied, checkout uses the legacy two-call fallback.
-- Catalogue write policies are still public. See [RLS warning](#rls-warning)
-  and [`docs/phase-1-audit.md`](docs/phase-1-audit.md).
+  project. Until it is applied, checkout uses the legacy two-call fallback.
+- The catalogue-write lockdown is committed and verified on local PostgreSQL,
+  but **not applied**. Until it is applied the public write policies remain
+  live. See [RLS warning](#rls-warning).
+
+Evidence: [`phase-1-audit.md`](docs/phase-1-audit.md),
+[`phase-2-audit.md`](docs/phase-2-audit.md). The shared source of truth is
+[`PROJECT_STATE.md`](docs/PROJECT_STATE.md).
 
 ## What the MVP does
 
@@ -34,15 +40,42 @@ network is down). The app shows a branded loading state only when there is no
 cache at all, and a retry card when the project is unreachable and nothing is
 available to paint. There is no payment step.
 
+## Architecture (Phase 2)
+
+`AppGraph` is the single composition root. It creates one app-scoped
+`RootStore`, owned by `AppStoreViewModel`, and injects the repository, cache,
+bag journal and one shared coroutine scope. Screens receive narrow slices
+(`CatalogStore`, `BagStore`, `CheckoutStore`, `NewsletterStore`) and navigation
+callbacks, never the root.
+
+```
+AppGraph (DI)
+  └─ RootStore                    ← survives configuration changes
+       ├─ CatalogStore            catalogue, filters/search, offline cache
+       ├─ BagStore                bag lines + persisted journal
+       ├─ CheckoutStore           checkout sessions + order submission
+       ├─ NewsletterStore         subscribe state
+       └─ Router                  typed back stack over sealed Destination
+```
+
+Navigation is a hand-rolled typed `Router` over a sealed `Destination` type
+(`Discover`, `Bag`, `Profile`, `Product(slug)`, `Checkout`) instead of route
+strings or a navigation library (ADR-3). System back is routed through
+`RootStore.onBack()`, which guards checkout: a submitting order cannot be popped,
+and backing out of confirmation abandons the session and returns to the tab.
+Decision records and invariants live in [`docs/DECISIONS.md`](docs/DECISIONS.md)
+and [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md).
+
 ## Offline-first behaviour (Phase 1)
 
 The store survives what users actually do to phones, not just what demos do:
 
-- **Rotation / window recreation** — the `Store` is owned by the platform
-  ViewModel store (`androidx.lifecycle.viewmodel.compose.viewModel` on every
-  KMP target), so the catalogue, bag and open product page live through
-  configuration changes and window recreation. Process death is covered by the
-  on-disk cache and bag journal, not by the ViewModel.
+- **Rotation / window recreation** — `RootStore` (catalogue, bag, checkout,
+  newsletter and router) is owned by the platform ViewModel store
+  (`androidx.lifecycle.viewmodel.compose.viewModel` on every KMP target), so the
+  current screen and all feature state live through configuration changes and
+  window recreation. Process death is covered by the on-disk cache and bag
+  journal, not by the ViewModel.
 - **Offline start** — the last successfully loaded catalogue is cached as JSON
   (`catalog-cache.json`) and painted instantly on launch; the network refresh
   then runs in the background (stale-while-revalidate). A failed refresh over
@@ -92,9 +125,11 @@ before treating the atomic path as live.
 
 - The Discover scroll position survives tab switches and device rotation.
 - PDP colour/size selections survive rotation and tab switches.
-- The checkout form survives rotation within a checkout session. Finishing or
-  abandoning checkout starts a clean session, so one customer's name, email and
-  address do not reappear in the next order.
+- The router back stack (tab, open PDP, open checkout) is store-owned and
+  survives rotation.
+- The checkout form survives rotation within a checkout session. Finishing,
+  backing out or abandoning checkout starts a clean session, so one customer's
+  name, email and address do not reappear in the next order.
 - These come from a `SaveableStateHolder` keyed by destination plus
   `rememberSaveable` keyed by checkout session — no app-level hacks.
 
@@ -169,13 +204,25 @@ Indian digit grouping (`₹12,34,567`).
 ### RLS warning
 
 The supplied schema marks the admin write policies as role `public` with
-`USING (true)` / `WITH CHECK (true)` on catalogue tables such as `products`,
-`variants`, `universes` and `collections`. Anyone with the publishable key can
+`USING (true)` / `WITH CHECK (true)` on nine catalogue tables (`products`,
+`variants`, `product_images`, `embroidery_details`, `universes`, `categories`,
+`collections`, `motifs`, `garments`). Anyone with the publishable key can
 therefore modify the catalogue. A safe probe (an intentionally invalid
 `products` insert) reaches the table's NOT NULL constraint instead of being
-rejected by RLS, which confirms the policy is open. Before production, restrict
-those policies to an authenticated admin role and keep only the intended public
-`SELECT` and order/newsletter `INSERT` policies.
+rejected by RLS, which confirms the policy is open.
+
+[`supabase/migrations/20260102000000_lock_catalogue_writes.sql`](supabase/migrations/20260102000000_lock_catalogue_writes.sql)
+drops every public/anon/authenticated write policy on those tables, revokes
+`INSERT`/`UPDATE`/`DELETE` from `anon` and `authenticated`, and removes the demo
+policy that allows public uploads to the `product-images` bucket. It keeps
+public `SELECT` and the guest order / order-item / newsletter / review `INSERT`
+policies, so checkout keeps working (including the `SECURITY INVOKER`
+`place_order` function). Admin edits will use `service_role`.
+
+Executed against the real DDL on local PostgreSQL 16, but **still not applied to
+the hosted project**, so the hole is live until OA-2 is done. After applying it,
+run the verification queries at the bottom of the migration file (expected: no
+client write policies on the nine catalogue tables).
 
 ## Stack
 
@@ -183,7 +230,7 @@ those policies to an authenticated admin role and keep only the intended public
 - Targets: `androidTarget`, `iosX64`, `iosArm64`, `iosSimulatorArm64`
 - UI is 100% `commonMain`; Android supplies the activity, manifest, resources and back-handler actual
 - Ktor **3.6.0** + kotlinx.serialization for PostgREST; CIO on Android, Darwin on iOS
-- JetBrains **lifecycle-viewmodel-compose 2.9.6** (KMP) owns the `Store` across rotations
+- JetBrains **lifecycle-viewmodel-compose 2.9.6** (KMP) owns `RootStore` across rotations
 - **okio** for the on-disk catalogue cache and bag journal (deterministic, unit-testable with `FakeFileSystem`)
 - Coil **3.4.0** + `coil-network-ktor3` for remote product photography
 - No Supabase SDK: the MVP needs six catalogue reads and three writes, so the REST surface is explicit and small
@@ -205,17 +252,27 @@ composeApp/src/
     data/LocalFiles.kt             expect/actual app-private directory (+ android/ios actuals)
     data/Mappers.kt                DTO → domain mapping
     data/SupabaseHttpClient.kt     Ktor client, RLS-safe headers, timeouts
-    state/Store.kt                 catalogue, filters, bag, checkout, newsletter
-    state/AppStoreViewModel.kt     ViewModel bridge that owns and cancels the Store
+    navigation/Destination.kt      sealed destinations + bottom-bar tab list
+    navigation/Router.kt           typed back stack
+    state/AppGraph.kt              composition root (hand-rolled DI)
+    state/RootStore.kt             app-scoped facade + cross-store flows
+    state/CatalogStore.kt          catalogue, filters/search, offline cache
+    state/BagStore.kt              bag lines + persisted journal
+    state/CheckoutStore.kt         checkout sessions + order submission
+    state/NewsletterStore.kt       subscribe state
+    state/AppStoreViewModel.kt     owns RootStore and cancels its scope
     ui/components/                 artwork, remote image, icons, card, bottom bar
     ui/screens/                    Discover, Product, Bag, Checkout, Profile
   androidMain/                     MainActivity, CIO engine, manifest, theme
   iosMain/                         MainViewController, Darwin engine
-  commonTest/                      StoreTest, LocalPersistenceTest, ignored live test
+  commonTest/                      Router/RootStore/BagStore/CatalogStore/
+                                   LocalPersistence tests + ignored live test
 supabase/migrations/
-  20260101000000_place_order_fn.sql  atomic orders SQL (apply once)
+  20260101000000_place_order_fn.sql       atomic orders SQL
+  20260102000000_lock_catalogue_writes.sql  catalogue write lockdown
 docs/
-  phase-1-audit.md                 findings, evidence and Phase 2 gate
+  PROJECT_STATE.md, DECISIONS.md, CONVENTIONS.md
+  phase-1-audit.md, phase-2-audit.md      findings + evidence
 ```
 
 ## Run it
@@ -259,17 +316,23 @@ part of the product identity.
 ## Verification
 
 - `:composeApp:assembleDebug` — passes
-- `:composeApp:testDebugUnitTest` — 24 passed, 1 skipped (the ignored live test);
-  includes persistence round-trips (`LocalPersistenceTest`), offline/bag-journal
-  behaviour and checkout-session isolation (`StoreTest`)
+- `:composeApp:testDebugUnitTest` — 40 passed, 1 skipped, 0 failures (41 tests:
+  Router 10, RootStore 14, BagStore 7, CatalogStore 3, LocalPersistence 6, live
+  test skipped)
 - `:composeApp:lintDebug` — 0 errors, 12 warnings (dependency/version updates
-  and the v26 adaptive-icon folder)
+  and the v26 adaptive-icon folder; see OA-3)
 - Live catalogue decode verified against the project: 10 products, 3 universes,
   variants, remote images, embroidery details and reviews map correctly
 - `:composeApp:compileKotlinIosSimulatorArm64` — passes with the Darwin engine
 - `place_order` executed against a local PostgreSQL 16 instance with the real
   `orders` / `order_items` schema and anon-style RLS: `created_at` default is
-  applied, items attach to the header, empty payloads roll back
+  applied, items attach to the header, empty payloads roll back, and the
+  function still works after the catalogue lockdown
+- Catalogue lockdown executed against a local PostgreSQL 16 database built from
+  the real `schema.sql` DDL plus Supabase-style grants: 23 write policies on
+  nine catalogue tables and the public image-upload policy dropped; re-run is
+  idempotent; anon SELECT retained; anon catalogue writes denied; guest order,
+  order-item and newsletter inserts still allowed
 - Android emulator smoke test on API 36: live feed, product grid, PDP photo
   pager, size selection, add to bag, checkout form, `orders` + `order_items`
   inserts, confirmation code, empty bag, newsletter insert, search and profile
@@ -277,18 +340,26 @@ part of the product identity.
   `UL-9FB62F47`) and one newsletter row in the live project. Remove them from
   the dashboard if you want a pristine dataset.
 
-## Phase 2 gate
+## Open actions / next gates
 
-- [ ] Apply `supabase/migrations/20260101000000_place_order_fn.sql` and verify
+- [ ] **OA-1** — apply
+      `supabase/migrations/20260101000000_place_order_fn.sql` and verify
       `/rpc/place_order` no longer returns `PGRST202`.
-- [ ] Decide whether Phase 2 includes catalogue RLS hardening; the current
-      policies permit public writes.
-- [ ] Confirm whether server-side price/stock validation is in Phase 2 scope.
-      The client currently supplies the unit price.
-- [ ] Decide the retry/idempotency policy for a timeout after a committed order.
+- [ ] **OA-2** — apply
+      `supabase/migrations/20260102000000_lock_catalogue_writes.sql`, then run
+      its verification queries in the dashboard.
+- [ ] **OA-3** — revisit lint's Kotlin analyser when the toolchain moves to
+      AGP 9.x (currently a Kotlin 2.2 reader against 2.4.21 metadata).
+- [ ] **D-6** — add server-trusted pricing/stock validation before real
+      payments (the client currently supplies the unit price).
+- [ ] **D-7** — add retry-safe order ids at payment integration (a timeout
+      after commit can currently duplicate an order if the client retries).
+- [ ] **Phase 3** — design elevation: Uniqlo-inspired redesign, dark theme,
+      brand fonts, shared-element card → PDP transition, accessibility.
 
-See [`docs/phase-1-audit.md`](docs/phase-1-audit.md) for the full findings,
-evidence and open questions.
+See [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md) for status and
+[`docs/phase-2-audit.md`](docs/phase-2-audit.md) for this audit's findings and
+evidence.
 
 ## Deliberately out of scope
 

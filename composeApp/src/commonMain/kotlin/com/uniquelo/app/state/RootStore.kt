@@ -45,7 +45,19 @@ class RootStore(
         router.push(Destination.Product(slug = product.slug))
     }
 
-    fun onBack() = router.back()
+    /**
+     * System-back entry point. Checkout must go through [closeCheckout] so a
+     * submitting order cannot be popped out from under the user, and so the
+     * session is abandoned when the user backs out of the confirmation screen.
+     * Calling `router.back()` directly here regressed both guarantees.
+     */
+    fun onBack() {
+        if (router.current == Destination.Checkout) {
+            closeCheckout()
+            return
+        }
+        router.back()
+    }
 
     // Checkout ------------------------------------------------------------------
 

@@ -42,6 +42,14 @@ logic.
 Parity rule: legacy behaviour preserved — back on a tab root returns to
 Discover; back from PDP/Checkout pops; bottom bar visible only on tab roots.
 
+**System-back routing (phase-2 audit).** The shell calls `RootStore.onBack()`,
+never `Router.back()` directly. `onBack` sends Checkout through
+`closeCheckout()`, which refuses to pop while an order is submitting and
+abandons the session (clearing `checkoutOpen`) on every other exit. Direct
+router pops left the session flag set, making checkout unreachable until process
+death (P2-1). Screens that own a guarded close (checkout back button) keep using
+it; platform back and screen back now share one guarded path.
+
 ## D-4 — Store split (Accepted, Phase 2)
 
 **Decision.** Feature stores own their state; `RootStore` is a thin facade that
@@ -71,6 +79,16 @@ Writes to catalogue content go through service/admin credentials later.
 table; any user of the anon key can deface the store. Deployment is blocked on
 human dashboard access (OA-2), so the artifact ships now and PROJECT_STATE
 tracks the open action. Until deployed, audit finding A13 remains live.
+
+**Scope amendment (phase-2 audit P2-2).** The first draft covered eight
+catalogue tables and matched only `roles = {public}`. The real schema has a
+ninth catalogue table (`garments`, 3 write policies) and a public
+`product-images` upload policy; dashboard-created policies may also name
+`anon`/`authenticated` explicitly. The migration now drops write policies for
+any of those three roles across all nine tables, revokes from both client roles
+and drops the upload policy (guarded, because bare local PG has no `storage`
+schema). Public SELECT and guest order/order-item/newsletter/review INSERT
+remain. Admin writes use `service_role`.
 
 ## D-8 — Hand-rolled DI (Accepted, Phase 2)
 

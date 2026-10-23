@@ -15,6 +15,7 @@ import com.uniquelo.app.model.Review
 import com.uniquelo.app.model.ThemeTokens
 import com.uniquelo.app.model.Universe
 import com.uniquelo.app.model.Variant
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 
@@ -28,6 +29,9 @@ internal class FakeRepository(
     var failCount = 0
     var orderFailures = 0
 
+    /** When set, [createOrder] suspends until the test releases it. */
+    var orderGate: CompletableDeferred<Unit>? = null
+
     override suspend fun loadCatalog(): CatalogSnapshot {
         if (failCount > 0) {
             failCount--
@@ -37,6 +41,7 @@ internal class FakeRepository(
     }
 
     override suspend fun createOrder(form: CheckoutForm, lines: List<CartLine>): PlacedOrder {
+        orderGate?.await()
         if (orderFailures > 0) {
             orderFailures--
             throw SupabaseException("row-level security blocked order insert")
