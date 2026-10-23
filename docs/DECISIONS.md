@@ -18,6 +18,7 @@
 | D-10 | Accepted | Android-first; iOS KMP target must always compile, no iOS app shell yet | — |
 | D-11 | Accepted | Bottom-bar tab list lives in a **top-level** `destinationTabs` val — never inside `Destination`'s companion (and `label` is abstract, not defaulted): ART class-init reentrancy poisons companion-built singleton lists with `null` | landmine 8 |
 | D-12 | Accepted | Adopt backend-agent's `place_order` **v2** + `get_order_details` verbatim (SECURITY DEFINER, pinned search_path, email required, generated-uuid fallback, item fallbacks + quantity clamp) — reviewed + executed on local PG16; Android app contract unchanged; legacy fallback stays | OA-1, A12/A2, landmines 1/2 |
+| D-13 | Accepted | **Interim partial lockdown**: revoke the 6 core catalogue tables now; PRESERVE storage `product-images` uploads + `categories`/`garments`/`collections` writes — the web Admin Studio still runs on the publishable key; full lockdown (D-5/OA-2) completes when Auth is wired | OA-5, P2-2, A13 |
 
 ---
 
@@ -141,3 +142,34 @@ D-6/D-7 (payments trigger). Response body remains unused by the Android app —
 extra response fields are safe. Known nuance: only `id` falls back on empty
 string; other text fields treat '' as a value (harmless for our app, which
 always sends catalogue-backed strings).
+
+## D-13 — Interim partial lockdown (Accepted, pre-Phase-3)
+
+**Decision.** The full catalogue lockdown (D-5/OA-2, `20260102000000_`) is
+**PAUSED** — do not deploy until Supabase Auth / an admin gate exists. The
+hosted project runs the interim revoke in
+`supabase/migrations/20260103000000_lockdown_interim.sql` instead: revoke
+INSERT/UPDATE/DELETE on the six core tables (`products`, `variants`,
+`product_images`, `embroidery_details`, `universes`, `motifs`) from
+`anon, authenticated`.
+
+**Why.** The web repo's Admin Studio (`src/pages/Admin.tsx`) performs
+product-photography uploads into the `product-images` bucket and taxonomy
+upserts (`categories`, `garments`, `collections`) under the **public
+publishable key**, because Supabase Auth does not exist yet. The full lockdown
+drops the upload policy and revokes taxonomy grants, breaking both live
+business flows. The interim protects the commercially sensitive core (product
+content, prices, stock, embroidery) while preserving exactly the paths Admin
+Studio writes. Accepted residual risks until OA-5 completes the lockdown:
+anonymous uploads into the bucket (file-hosting abuse on project quota) and
+taxonomy defacement (labels/imagery via `categories.image`,
+`collections.cover_image`) remain possible — cosmetic/abuse-level, not
+buyer-facing transactional data. Baseline probes (2026-10-23) confirmed grants
+were live pre-run (anon INSERT on `products`/`garments` → `23502`).
+
+**Completion trigger (OA-5).** The moment `/admin` authenticates (Supabase
+Auth or moved to service-role credentials), deploy the full `20260102` file in
+full/idempotent — it supersedes the interim's revokes, drops all permissive
+demo policies and the upload policy; Admin-Studio anon writes then fail **by
+design** and the flow must move to the authenticated role. The full file stays
+in the repo as the completion artifact with a DO-NOT-DEPLOY-until-then banner.

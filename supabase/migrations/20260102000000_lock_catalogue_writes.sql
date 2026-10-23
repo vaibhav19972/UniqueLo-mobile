@@ -1,3 +1,15 @@
+-- ═════════════════════════════════════════════════════════════════════════════
+-- ⛔ PAUSED — DO NOT DEPLOY until Supabase Auth / an admin gate is wired (OA-5,
+--    decided in D-13, 2026-10-23).
+--    The web Admin Studio (web repo `src/pages/Admin.tsx`) still performs its
+--    photography uploads and taxonomy upserts under the PUBLIC publishable
+--    key; deploying THIS file breaks both. The deployed interim state is the
+--    reduced revoke in `20260103000000_lockdown_interim.sql`. When the admin
+--    flow authenticates, run THIS file in full — its revokes supersede the
+--    interim (idempotent) and it also drops the product-images upload policy,
+--    at which point Admin-Studio anon writes fail by design.
+-- ═════════════════════════════════════════════════════════════════════════════
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Catalogue write lockdown (audit A13 → decision D-5, open action OA-2).
 --
