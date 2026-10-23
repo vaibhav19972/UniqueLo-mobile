@@ -16,6 +16,7 @@
 | D-8 | Accepted | Hand-rolled DI (`AppGraph`) over a framework (Koin/Hilt); revisit if modules multiply | — |
 | D-9 | Accepted | CI = GitHub Actions, macOS runner, full matrix (assemble + unit + lint + iOS target) | — |
 | D-10 | Accepted | Android-first; iOS KMP target must always compile, no iOS app shell yet | — |
+| D-11 | Accepted | Bottom-bar tab list lives in a **top-level** `destinationTabs` val — never inside `Destination`'s companion (and `label` is abstract, not defaulted): ART class-init reentrancy poisons companion-built singleton lists with `null` | landmine 8 |
 
 ---
 

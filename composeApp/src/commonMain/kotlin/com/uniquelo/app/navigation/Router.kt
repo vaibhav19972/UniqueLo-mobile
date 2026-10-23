@@ -29,7 +29,7 @@ class Router(initial: Destination = Destination.Discover) {
 
     /** Switches to a tab root, resetting history. Tab roots never stack. */
     fun selectTab(tab: Destination) {
-        require(Destination.isTabRoot(tab)) { "$tab is not a tab root" }
+        require(tab.isTabRoot()) { "$tab is not a tab root" }
         if (backStack.size == 1 && backStack.first() == tab) return
         backStack.clear()
         backStack.add(tab)

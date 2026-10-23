@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.uniquelo.app.navigation.Destination
+import com.uniquelo.app.navigation.destinationTabs
 import com.uniquelo.app.ui.theme.Palette
 
 @Composable
@@ -43,7 +44,7 @@ fun UniqueLoBottomBar(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Destination.tabs.forEach { tab ->
+            destinationTabs.forEach { tab ->
                 BottomBarItem(
                     tab = tab,
                     selected = current == tab,
