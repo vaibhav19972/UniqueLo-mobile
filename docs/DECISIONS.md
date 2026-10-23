@@ -126,9 +126,14 @@ status; the Android app still doesn't call it (Phase 4 candidate).
 
 **Verification (Rule 1).** Live hosted columns introspected via read-only REST
 probes; SQL executed on local PG 16.15 clone `uniquelo_clone`: full battery
-(documented in PROJECT_STATE verification history). Deployed-parity checks the
-human runner should see: `POST /rest/v1/rpc/place_order` with `{}` →
-**400 `22023`** (not `PGRST202`), matching the items-first guard order.
+(documented in PROJECT_STATE verification history). **Deployed and
+live-verified on the hosted project, 2026-10-23** — items-first guard
+confirmed via named-args call (`{"p_order":{},"p_items":"[]"}` → 400
+`22023`); correspondence probe (junk item uuid inside a valid order + items
+array → 400 `22P02` with the header lookup afterwards returning `null`) proved
+the header+items transaction rolls back atomically on the live deployment.
+Note for future verifiers: a bare `{}` body binds **no** arguments and yields
+`PGRST202` — that is expected, not a deploy failure.
 
 **Limits kept from v1 contract.** `status` remains client-suggested inside the
 app's trusted shape ('reserved'); server-owned pricing/validation stays with
