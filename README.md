@@ -253,7 +253,8 @@ part of the product identity.
 ## Verification
 
 - `:composeApp:assembleDebug` — passes
-- `:composeApp:testDebugUnitTest` — 7 passed, 1 skipped (the ignored live test)
+- `:composeApp:testDebugUnitTest` — 21 passed, 1 skipped (the ignored live test);
+  includes persistence round-trips (`LocalPersistenceTest`) and offline/bag-journal behaviour (StoreTest)
 - `:composeApp:lintDebug` — 0 errors, 8 warnings (dependency/version updates and
   the v26 adaptive-icon folder)
 - Live catalogue decode verified against the project: products, variants, remote
