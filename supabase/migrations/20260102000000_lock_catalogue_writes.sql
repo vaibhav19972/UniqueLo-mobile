@@ -25,6 +25,9 @@ do $$
 declare
   policy record;
 begin
+  -- pg_policies.permissive is text ('PERMISSIVE'/'RESTRICTIVE' on PG 14+) and
+  -- introduced version drift here once already; match on the write command and
+  -- the granted role instead, which are stable across releases.
   for policy in
     select p.tablename, p.policyname
     from pg_policies p
@@ -33,7 +36,7 @@ begin
         'products', 'variants', 'product_images', 'embroidery_details',
         'universes', 'categories', 'collections', 'motifs'
       )
-      and p.permissive
+      and p.cmd in ('ALL', 'INSERT', 'UPDATE', 'DELETE')
       and 'public' = any (p.roles)
   loop
     execute format('drop policy if exists %I on public.%I',
@@ -47,10 +50,16 @@ revoke insert, update, delete
      public.collections, public.motifs
   from anon, authenticated;
 
--- Sanity check (run manually afterwards; no output in dashboard? use editors):
+-- Sanity check (run manually afterwards):
 --   select tablename, policyname, cmd from pg_policies
 --    where schemaname = 'public'
 --      and tablename in ('products','variants','product_images',
 --                        'embroidery_details','universes','categories',
---                        'collections','motifs');
--- Expected: no rows with cmd in ('INSERT','UPDATE','DELETE') for roles public.
+--                        'collections','motifs')
+--      and cmd in ('ALL','INSERT','UPDATE','DELETE')
+--      and 'public' = any (roles);
+-- Expected: 0 rows.
+--
+-- Executed against a local PostgreSQL 16.15 clone (owner-style policies,
+-- supabase-like anon/authenticated roles): all eight demo write policies
+-- dropped, re-run is idempotent, anon SELECT retained, anon INSERT denied.
