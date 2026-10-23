@@ -24,12 +24,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.uniquelo.app.state.Store
-import com.uniquelo.app.state.Tab
+import com.uniquelo.app.navigation.Destination
 import com.uniquelo.app.ui.theme.Palette
 
 @Composable
-fun UniqueLoBottomBar(store: Store) {
+fun UniqueLoBottomBar(
+    current: Destination,
+    bagCount: Int,
+    onSelect: (Destination) -> Unit,
+) {
     Column(modifier = Modifier.fillMaxWidth().background(Palette.Paper)) {
         HorizontalDivider(color = Palette.Line, thickness = 1.dp)
         Row(
@@ -40,21 +43,31 @@ fun UniqueLoBottomBar(store: Store) {
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Tab.entries.forEach { tab ->
+            Destination.tabs.forEach { tab ->
                 BottomBarItem(
                     tab = tab,
-                    selected = store.tab == tab,
-                    badge = if (tab == Tab.Bag) store.bagCount else 0,
-                    onClick = { store.selectTab(tab) },
+                    selected = current == tab,
+                    badge = if (tab == Destination.Bag) bagCount else 0,
+                    onClick = { onSelect(tab) },
                 )
             }
         }
     }
 }
 
+/** Tab-bar icons; overlays can never be passed here. */
+private fun iconFor(tab: Destination): UiIcon = when (tab) {
+    is Destination.Discover -> UiIcon.Discover
+    is Destination.Bag -> UiIcon.Bag
+    is Destination.Profile -> UiIcon.Person
+    is Destination.Product,
+    is Destination.Checkout,
+    -> error("Tab bar icon requested for overlay destination $tab")
+}
+
 @Composable
 private fun BottomBarItem(
-    tab: Tab,
+    tab: Destination,
     selected: Boolean,
     badge: Int,
     onClick: () -> Unit,
@@ -73,11 +86,7 @@ private fun BottomBarItem(
     ) {
         Box {
             UiIcon(
-                icon = when (tab) {
-                    Tab.Discover -> UiIcon.Discover
-                    Tab.Bag -> UiIcon.Bag
-                    Tab.Profile -> UiIcon.Person
-                },
+                icon = iconFor(tab),
                 modifier = Modifier.size(DefaultIconSize),
                 tint = tint,
             )
@@ -102,7 +111,7 @@ private fun BottomBarItem(
         }
         Spacer(Modifier.height(5.dp))
         Text(
-            text = tab.label.uppercase(),
+            text = tab.label.orEmpty().uppercase(),
             style = MaterialTheme.typography.labelSmall,
             color = tint,
         )

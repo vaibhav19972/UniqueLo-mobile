@@ -46,9 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.uniquelo.app.model.Product
 import com.uniquelo.app.model.Universe
+import com.uniquelo.app.state.CatalogStore
+import com.uniquelo.app.state.NewsletterStore
 import com.uniquelo.app.state.SubscribeState
-import com.uniquelo.app.state.Store
-import com.uniquelo.app.state.Tab
 import com.uniquelo.app.ui.components.ProductCard
 import com.uniquelo.app.ui.components.ProductVisual
 import com.uniquelo.app.ui.components.UiIcon
@@ -57,13 +57,16 @@ import com.uniquelo.app.ui.theme.Palette
 
 @Composable
 fun DiscoverScreen(
-    store: Store,
+    catalog: CatalogStore,
+    newsletter: NewsletterStore,
+    bagCount: Int,
+    onOpenBag: () -> Unit,
     onOpenProduct: (Product) -> Unit,
     listState: LazyListState = rememberLazyListState(),
 ) {
-    val results = store.results
-    val searching = store.query.isNotBlank()
-    val featured = store.featuredFor(results)
+    val results = catalog.results
+    val searching = catalog.query.isNotBlank()
+    val featured = catalog.featuredFor(results)
     val rows = results.chunked(2)
 
     LazyColumn(
@@ -73,8 +76,8 @@ fun DiscoverScreen(
     ) {
         item {
             Header(
-                bagCount = store.bagCount,
-                onBagClick = { store.selectTab(Tab.Bag) },
+                bagCount = bagCount,
+                onBagClick = onOpenBag,
             )
         }
 
@@ -94,37 +97,37 @@ fun DiscoverScreen(
                 )
                 Spacer(Modifier.height(20.dp))
                 SearchField(
-                    value = store.query,
-                    onValueChange = { store.query = it },
-                    onClear = { store.query = "" },
+                    value = catalog.query,
+                    onValueChange = { catalog.query = it },
+                    onClear = { catalog.query = "" },
                 )
             }
         }
 
         when {
-            store.isLoading -> item { LoadingBlock() }
-            store.loadError != null -> item {
-                ErrorBlock(message = store.loadError.orEmpty(), onRetry = { store.retry() })
+            catalog.isLoading -> item { LoadingBlock() }
+            catalog.loadError != null -> item {
+                ErrorBlock(message = catalog.loadError.orEmpty(), onRetry = { catalog.retry() })
             }
 
             else -> {
-                if (store.syncError != null) {
+                if (catalog.syncError != null) {
                     item {
                         SyncBanner(
-                            message = store.syncError.orEmpty(),
-                            onRetry = { store.retry() },
+                            message = catalog.syncError.orEmpty(),
+                            onRetry = { catalog.retry() },
                         )
                     }
                 }
 
-                if (!searching && store.universes.isNotEmpty()) {
+                if (!searching && catalog.universes.isNotEmpty()) {
                     item {
                         Spacer(Modifier.height(22.dp))
                         UniverseSection(
-                            universes = store.universes,
-                            selectedSlug = store.universeSlug,
-                            onSelect = { store.selectUniverse(it) },
-                            onClear = { store.selectUniverse(null) },
+                            universes = catalog.universes,
+                            selectedSlug = catalog.universeSlug,
+                            onSelect = { catalog.selectUniverse(it) },
+                            onClear = { catalog.selectUniverse(null) },
                         )
                     }
                 }
@@ -133,9 +136,9 @@ fun DiscoverScreen(
                     item {
                         Spacer(Modifier.height(20.dp))
                         CategoryChips(
-                            selected = store.categorySlug,
-                            categories = store.categories.map { it.slug to it.label },
-                            onSelect = { store.selectCategory(it) },
+                            selected = catalog.categorySlug,
+                            categories = catalog.categories.map { it.slug to it.label },
+                            onSelect = { catalog.selectCategory(it) },
                         )
                     }
                 }
@@ -173,7 +176,7 @@ fun DiscoverScreen(
                 }
 
                 if (results.isEmpty()) {
-                    item { EmptySearch(onReset = { store.resetFilters() }) }
+                    item { EmptySearch(onReset = { catalog.resetFilters() }) }
                 } else {
                     items(items = rows, key = { row -> row.joinToString("|") { it.slug } }) { row ->
                         Row(
@@ -194,7 +197,7 @@ fun DiscoverScreen(
                     }
                 }
 
-                item { NewsletterBlock(store) }
+                item { NewsletterBlock(newsletter) }
                 item { ManifestoFooter() }
             }
         }
@@ -588,7 +591,7 @@ private fun FeaturedCard(
 }
 
 @Composable
-private fun NewsletterBlock(store: Store) {
+private fun NewsletterBlock(newsletter: NewsletterStore) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -617,7 +620,7 @@ private fun NewsletterBlock(store: Store) {
         )
         Spacer(Modifier.height(18.dp))
 
-        when (val state = store.subscribeState) {
+        when (val state = newsletter.subscribeState) {
             is SubscribeState.Success -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -651,7 +654,7 @@ private fun NewsletterBlock(store: Store) {
                             .padding(horizontal = 12.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
-                        if (store.subscribeEmail.isEmpty()) {
+                        if (newsletter.subscribeEmail.isEmpty()) {
                             Text(
                                 text = "you@example.com",
                                 style = MaterialTheme.typography.bodyMedium,
@@ -659,11 +662,11 @@ private fun NewsletterBlock(store: Store) {
                             )
                         }
                         BasicTextField(
-                            value = store.subscribeEmail,
+                            value = newsletter.subscribeEmail,
                             onValueChange = {
-                                store.subscribeEmail = it
-                                if (store.subscribeState is SubscribeState.Error) {
-                                    store.clearSubscribeError()
+                                newsletter.subscribeEmail = it
+                                if (newsletter.subscribeState is SubscribeState.Error) {
+                                    newsletter.clearSubscribeError()
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -674,7 +677,7 @@ private fun NewsletterBlock(store: Store) {
                                 keyboardType = KeyboardType.Email,
                                 imeAction = ImeAction.Done,
                             ),
-                            keyboardActions = KeyboardActions(onDone = { store.subscribe() }),
+                            keyboardActions = KeyboardActions(onDone = { newsletter.subscribe() }),
                         )
                     }
                     Spacer(Modifier.width(10.dp))
@@ -684,7 +687,7 @@ private fun NewsletterBlock(store: Store) {
                             .clip(RoundedCornerShape(3.dp))
                             .background(Palette.Lime)
                             .clickable(enabled = state !is SubscribeState.Submitting) {
-                                store.subscribe()
+                                newsletter.subscribe()
                             }
                             .padding(horizontal = 16.dp),
                         contentAlignment = Alignment.Center,

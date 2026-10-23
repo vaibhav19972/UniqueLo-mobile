@@ -19,9 +19,9 @@ import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.request.crossfade
 import com.uniquelo.app.data.platformHttpEngine
+import com.uniquelo.app.navigation.Destination
 import com.uniquelo.app.state.AppStoreViewModel
-import com.uniquelo.app.state.Store
-import com.uniquelo.app.state.Tab
+import com.uniquelo.app.state.RootStore
 import com.uniquelo.app.ui.PlatformBackHandler
 import com.uniquelo.app.ui.components.UniqueLoBottomBar
 import com.uniquelo.app.ui.screens.BagScreen
@@ -37,26 +37,26 @@ fun App() {
     UniqueLoTheme {
         InstallImageLoader()
 
-        // The store is owned by the ViewModelStoreOwner (activity on Android,
-        // the view controller on iOS), not by the composition: rotating the
-        // device or recreating the window keeps the catalogue, bag and
-        // selected product intact.
-        val store: Store = viewModel { AppStoreViewModel() }.store
+        // The root store is owned by the ViewModelStoreOwner (activity on
+        // Android, the view controller on iOS), not by the composition:
+        // rotating the device keeps state that lives in the stores, and
+        // `onCleared` closes the shared scope (docs/CONVENTIONS.md Rule 3).
+        val store: RootStore = viewModel { AppStoreViewModel() }.store
+        val catalog = store.catalog
+        val bag = store.bag
+        val router = store.router
 
         LaunchedEffect(store) {
-            store.load()
+            catalog.load()
         }
 
-        val product = store.selectedProduct
+        val destination = router.current
 
-        PlatformBackHandler(
-            enabled = store.checkoutOpen || product != null || store.tab != Tab.Discover,
-        ) {
-            when {
-                store.checkoutOpen -> store.closeCheckout()
-                product != null -> store.closeProduct()
-                else -> store.selectTab(Tab.Discover)
-            }
+        // Parity with the pre-router shell (D-3): back is enabled everywhere
+        // except the Discover root; screens manage their own guarded closes
+        // (e.g. a submitting checkout refuses to be popped by accident).
+        PlatformBackHandler(enabled = destination != Destination.Discover) {
+            store.onBack()
         }
 
         val saveableStateHolder = rememberSaveableStateHolder()
@@ -68,52 +68,75 @@ fun App() {
                 .background(Palette.Bone)
                 .windowInsetsPadding(WindowInsets.safeDrawing),
         ) {
-            when {
-                store.checkoutOpen -> saveableStateHolder.SaveableStateProvider("checkout") {
+            when (destination) {
+                Destination.Checkout -> saveableStateHolder.SaveableStateProvider("checkout") {
                     CheckoutScreen(
-                        store = store,
-                        session = store.checkoutSession,
+                        checkout = store.checkout,
+                        bag = bag,
+                        onSubmit = store::submitOrder,
                         onBack = { store.closeCheckout() },
+                        onFinish = { store.finishOrder() },
                     )
                 }
 
-                product != null -> saveableStateHolder.SaveableStateProvider("pdp/${product.slug}") {
-                    ProductScreen(
-                        product = product,
-                        store = store,
-                        onBack = { store.closeProduct() },
-                    )
+                is Destination.Product -> {
+                    // Shell resolves the slug against the live catalogue; a
+                    // refresh that removes the product closes the PDP (same
+                    // net effect as the pre-router `selectedProduct = null`).
+                    val product = catalog.products.firstOrNull { it.slug == destination.slug }
+                    if (product != null) {
+                        saveableStateHolder.SaveableStateProvider("pdp/${product.slug}") {
+                            ProductScreen(
+                                product = product,
+                                bag = bag,
+                                onBack = { router.pop() },
+                                onOpenBag = { router.selectTab(Destination.Bag) },
+                            )
+                        }
+                    } else {
+                        LaunchedEffect(destination.slug) { router.pop() }
+                    }
                 }
 
                 else -> Column(modifier = Modifier.fillMaxSize()) {
                     Crossfade(
-                        targetState = store.tab,
+                        targetState = destination,
                         modifier = Modifier.weight(1f),
                         label = "tab",
                     ) { tab ->
-                        // State (scroll, PDP selections, checkout form) is
-                        // preserved across tab switches and device rotation
-                        // via the saveable state holder keyed by destination.
-                        saveableStateHolder.SaveableStateProvider(tab.name) {
+                        // State (scroll, selections, forms) is preserved across
+                        // tab switches and device rotation via the saveable
+                        // state holder keyed by destination.
+                        saveableStateHolder.SaveableStateProvider(tab.label ?: tab.toString()) {
                             when (tab) {
-                                Tab.Discover -> DiscoverScreen(
-                                    store = store,
-                                    onOpenProduct = { store.open(it) },
+                                Destination.Discover -> DiscoverScreen(
+                                    catalog = catalog,
+                                    newsletter = store.newsletter,
+                                    bagCount = bag.bagCount,
+                                    onOpenBag = { router.selectTab(Destination.Bag) },
+                                    onOpenProduct = { store.openProduct(it) },
                                     listState = discoverListState,
                                 )
 
-                                Tab.Bag -> BagScreen(
-                                    store = store,
-                                    onBrowse = { store.selectTab(Tab.Discover) },
+                                Destination.Bag -> BagScreen(
+                                    bag = bag,
+                                    onCheckout = { store.requestCheckout() },
+                                    onBrowse = { store.selectTab(Destination.Discover) },
                                 )
 
-                                Tab.Profile -> ProfileScreen(
-                                    onBrowse = { store.selectTab(Tab.Discover) },
+                                Destination.Profile -> ProfileScreen(
+                                    onBrowse = { store.selectTab(Destination.Discover) },
                                 )
+
+                                else -> Unit // overlays never reach this branch
                             }
                         }
                     }
-                    UniqueLoBottomBar(store)
+                    UniqueLoBottomBar(
+                        current = destination,
+                        bagCount = bag.bagCount,
+                        onSelect = { store.selectTab(it) },
+                    )
                 }
             }
         }

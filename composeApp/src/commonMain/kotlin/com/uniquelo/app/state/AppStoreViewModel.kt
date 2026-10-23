@@ -3,13 +3,12 @@ package com.uniquelo.app.state
 import androidx.lifecycle.ViewModel
 
 /**
- * Platform bridge that registers the app [Store] with the ViewModelStoreOwner
- * (the activity on Android, the view controller on iOS) so it survives
- * configuration changes and window recreation. The store itself stays a plain
- * framework-agnostic state holder; this class is the only ViewModel in the app.
+ * ViewModel-owned store facade (survives configurations change, process death
+ * is handled by the stores' own persistence). `onCleared` cancels the shared
+ * scope so in-flight refreshes cannot outlive the screen (audit A6/A7).
  */
 class AppStoreViewModel : ViewModel() {
-    val store: Store = Store()
+    val store: RootStore = AppGraph.createStore()
 
     override fun onCleared() {
         store.close()

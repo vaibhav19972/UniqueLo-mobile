@@ -46,8 +46,7 @@ import com.uniquelo.app.model.Product
 import com.uniquelo.app.model.Review
 import com.uniquelo.app.model.Variant
 import com.uniquelo.app.model.formatCents
-import com.uniquelo.app.state.Store
-import com.uniquelo.app.state.Tab
+import com.uniquelo.app.state.BagStore
 import com.uniquelo.app.ui.components.ProductVisual
 import com.uniquelo.app.ui.components.UiIcon
 import com.uniquelo.app.ui.components.parseHexColor
@@ -56,8 +55,9 @@ import com.uniquelo.app.ui.theme.Palette
 @Composable
 fun ProductScreen(
     product: Product,
-    store: Store,
+    bag: BagStore,
     onBack: () -> Unit,
+    onOpenBag: () -> Unit,
 ) {
     val colors = product.colors
     var selectedColor by rememberSaveable(product.slug) { mutableStateOf(colors.firstOrNull()?.name) }
@@ -223,14 +223,11 @@ fun ProductScreen(
             added = added,
             onAdd = {
                 selectedVariant?.let { variant ->
-                    store.add(product, variant)
+                    bag.add(product, variant)
                     added = true
                 }
             },
-            onViewBag = {
-                store.closeProduct()
-                store.selectTab(Tab.Bag)
-            },
+            onViewBag = onOpenBag,
         )
     }
 }

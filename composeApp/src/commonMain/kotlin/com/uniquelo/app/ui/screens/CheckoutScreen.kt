@@ -44,27 +44,38 @@ import androidx.compose.ui.unit.dp
 import com.uniquelo.app.data.CheckoutForm
 import com.uniquelo.app.data.PlacedOrder
 import com.uniquelo.app.model.formatCents
+import com.uniquelo.app.state.BagStore
+import com.uniquelo.app.state.CheckoutStore
 import com.uniquelo.app.state.OrderState
-import com.uniquelo.app.state.Store
 import com.uniquelo.app.ui.components.UiIcon
 import com.uniquelo.app.ui.theme.Palette
 
 @Composable
 fun CheckoutScreen(
-    store: Store,
-    session: Int,
+    checkout: CheckoutStore,
+    bag: BagStore,
+    onSubmit: (CheckoutForm) -> Unit,
     onBack: () -> Unit,
+    onFinish: () -> Unit,
 ) {
-    when (val state = store.orderState) {
-        is OrderState.Success -> ConfirmationScreen(store = store, order = state.order)
-        else -> CheckoutFormScreen(store = store, session = session, onBack = onBack)
+    when (val state = checkout.orderState) {
+        is OrderState.Success -> ConfirmationScreen(order = state.order, onFinish = onFinish)
+        else -> CheckoutFormScreen(
+            checkout = checkout,
+            bag = bag,
+            session = checkout.checkoutSession,
+            onSubmit = onSubmit,
+            onBack = onBack,
+        )
     }
 }
 
 @Composable
 private fun CheckoutFormScreen(
-    store: Store,
+    checkout: CheckoutStore,
+    bag: BagStore,
     session: Int,
+    onSubmit: (CheckoutForm) -> Unit,
     onBack: () -> Unit,
 ) {
     // Keyed by the checkout session: rotation restores the half-typed form,
@@ -79,7 +90,7 @@ private fun CheckoutFormScreen(
     var attempted by rememberSaveable(session) { mutableStateOf(false) }
     var formError by rememberSaveable(session) { mutableStateOf<String?>(null) }
 
-    val submitting = store.orderState is OrderState.Submitting
+    val submitting = checkout.orderState is OrderState.Submitting
     val emailRegex = remember { Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$") }
 
     Column(modifier = Modifier.fillMaxSize().background(Palette.Bone)) {
@@ -122,7 +133,7 @@ private fun CheckoutFormScreen(
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 24.dp),
         ) {
-            OrderSummary(store = store)
+            OrderSummary(bag = bag)
 
             Spacer(Modifier.height(24.dp))
             Text(
@@ -197,7 +208,7 @@ private fun CheckoutFormScreen(
                 invalid = attempted && country.isBlank(),
             )
 
-            val error = formError ?: (store.orderState as? OrderState.Error)?.message
+            val error = formError ?: (checkout.orderState as? OrderState.Error)?.message
             if (error != null) {
                 Spacer(Modifier.height(16.dp))
                 Text(
@@ -232,7 +243,7 @@ private fun CheckoutFormScreen(
                     color = Palette.Muted,
                 )
                 Text(
-                    text = formatCents(store.subtotalCents),
+                    text = formatCents(bag.subtotalCents),
                     style = MaterialTheme.typography.titleMedium,
                     color = Palette.Ink,
                 )
@@ -254,7 +265,7 @@ private fun CheckoutFormScreen(
                             city.isBlank() -> formError = "Please add a city."
                             postal.isBlank() -> formError = "Please add a PIN code."
                             country.isBlank() -> formError = "Please add a country."
-                            else -> store.submitOrder(
+                            else -> onSubmit(
                                 CheckoutForm(
                                     name = name,
                                     email = email,
@@ -284,7 +295,7 @@ private fun CheckoutFormScreen(
                     }
                 } else {
                     Text(
-                        text = "PLACE RESERVATION · ${formatCents(store.subtotalCents)}",
+                        text = "PLACE RESERVATION · ${formatCents(bag.subtotalCents)}",
                         style = MaterialTheme.typography.labelLarge,
                         color = Palette.Ink,
                     )
@@ -295,7 +306,7 @@ private fun CheckoutFormScreen(
 }
 
 @Composable
-private fun OrderSummary(store: Store) {
+private fun OrderSummary(bag: BagStore) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -310,7 +321,7 @@ private fun OrderSummary(store: Store) {
             color = Palette.Muted,
         )
         Spacer(Modifier.height(12.dp))
-        store.lines.forEach { line ->
+        bag.lines.forEach { line ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -369,7 +380,7 @@ private fun OrderSummary(store: Store) {
                 color = Palette.Ink,
             )
             Text(
-                text = formatCents(store.subtotalCents),
+                text = formatCents(bag.subtotalCents),
                 style = MaterialTheme.typography.titleMedium,
                 color = Palette.Ink,
             )
@@ -430,8 +441,8 @@ private fun LabelledField(
 
 @Composable
 private fun ConfirmationScreen(
-    store: Store,
     order: PlacedOrder,
+    onFinish: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -500,7 +511,7 @@ private fun ConfirmationScreen(
                 .height(54.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(Palette.Ink)
-                .clickable { store.finishOrder() },
+                .clickable { onFinish() },
             contentAlignment = Alignment.Center,
         ) {
             Text(

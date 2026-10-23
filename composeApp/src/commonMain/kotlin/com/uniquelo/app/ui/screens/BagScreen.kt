@@ -34,17 +34,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.uniquelo.app.model.CartLine
 import com.uniquelo.app.model.formatCents
-import com.uniquelo.app.state.Store
+import com.uniquelo.app.state.BagStore
 import com.uniquelo.app.ui.components.ProductVisual
 import com.uniquelo.app.ui.components.UiIcon
 import com.uniquelo.app.ui.theme.Palette
 
 @Composable
 fun BagScreen(
-    store: Store,
+    bag: BagStore,
+    onCheckout: () -> Unit,
     onBrowse: () -> Unit,
 ) {
-    if (store.isEmpty) {
+    if (bag.isEmpty) {
         EmptyBag(onBrowse = onBrowse)
         return
     }
@@ -65,7 +66,7 @@ fun BagScreen(
                     color = Palette.Ink,
                 )
                 Text(
-                    text = "${store.bagCount} ${if (store.bagCount == 1) "piece" else "pieces"}".uppercase(),
+                    text = "${bag.bagCount} ${if (bag.bagCount == 1) "piece" else "pieces"}".uppercase(),
                     style = MaterialTheme.typography.labelSmall,
                     color = Palette.Muted,
                 )
@@ -74,20 +75,20 @@ fun BagScreen(
             HorizontalDivider(color = Palette.Line)
         }
 
-        items(items = store.lines, key = { it.variant.sku }) { line ->
+        items(items = bag.lines, key = { it.variant.sku }) { line ->
             BagLine(
                 line = line,
-                onIncrement = { store.increment(line.variant.sku) },
-                onDecrement = { store.decrement(line.variant.sku) },
-                onRemove = { store.remove(line.variant.sku) },
+                onIncrement = { bag.increment(line.variant.sku) },
+                onDecrement = { bag.decrement(line.variant.sku) },
+                onRemove = { bag.remove(line.variant.sku) },
             )
         }
 
         item {
             Spacer(Modifier.height(14.dp))
             SummaryCard(
-                subtotalCents = store.subtotalCents,
-                onCheckout = { store.requestCheckout() },
+                subtotalCents = bag.subtotalCents,
+                onCheckout = onCheckout,
             )
             Spacer(Modifier.height(18.dp))
             Text(
