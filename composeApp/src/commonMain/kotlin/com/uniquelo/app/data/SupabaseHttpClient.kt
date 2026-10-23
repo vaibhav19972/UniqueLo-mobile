@@ -12,7 +12,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
-/** Each platform supplies its own engine: OkHttp on Android, Darwin on iOS. */
+/** Each platform supplies its own engine: CIO on Android, Darwin on iOS. */
 expect fun platformHttpEngine(): HttpClientEngineFactory<*>
 
 internal val SupabaseJson = Json {

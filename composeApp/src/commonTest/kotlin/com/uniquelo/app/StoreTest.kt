@@ -137,6 +137,25 @@ class StoreTest {
     }
 
     @Test
+    fun eachCheckoutGetsAFreshSaveableSession() {
+        val store = Store(repository = repositoryFake)
+        store.add(kurta, kurta.variants.first())
+
+        store.requestCheckout()
+        val first = store.checkoutSession
+        assertTrue(first > 0)
+
+        store.closeCheckout()
+        store.requestCheckout()
+        assertEquals(first + 1, store.checkoutSession)
+
+        // Tapping checkout again while it is already open must not reset the
+        // half-typed form for the current session.
+        store.requestCheckout()
+        assertEquals(first + 1, store.checkoutSession)
+    }
+
+    @Test
     fun inrFormattingUsesIndianGrouping() {
         assertEquals("₹1,499", formatCents(149900))
         assertEquals("₹10,500", formatCents(1050000))
@@ -225,6 +244,50 @@ class StoreTest {
 
         assertEquals(1, store.lines.size)
         assertEquals("kurta-xxl", store.lines.single().variant.sku)
+    }
+
+    @Test
+    fun cacheStageKeepsUnmatchedJournalEntriesAlongsideMatchedOnes() {
+        val bag = FakeBagStore(
+            listOf(
+                SavedLine("kurta", "kurta-s", quantity = 2),   // matches the cache
+                SavedLine("kurta", "kurta-xxl", quantity = 1), // only lives remotely
+            ),
+        )
+        val store = Store(
+            repository = FakeRepository(snapshot()),
+            cache = FakeCache(snapshot()),
+            bagStorage = bag,
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+
+        assertEquals(listOf("kurta-s"), store.lines.map { it.variant.sku })
+        assertEquals(setOf("kurta-s", "kurta-xxl"), bag.saved.map { it.sku }.toSet())
+
+        // Editing a visible line must not rewrite the journal without the
+        // entry that is still waiting for the live catalogue.
+        store.increment("kurta-s")
+        assertEquals(setOf("kurta-s", "kurta-xxl"), bag.saved.map { it.sku }.toSet())
+        assertEquals(3, bag.saved.first { it.sku == "kurta-s" }.quantity)
+    }
+
+    @Test
+    fun liveRefreshDropsUnmatchedJournalEntriesFromDisk() {
+        val bag = FakeBagStore(listOf(SavedLine("ghost", "ghost-s", quantity = 1)))
+        val store = Store(
+            repository = FakeRepository(snapshot()),
+            cache = FakeCache(snapshot()),
+            bagStorage = bag,
+            scope = CoroutineScope(Dispatchers.Unconfined),
+        )
+
+        assertTrue(store.isEmpty)
+        assertEquals(1, bag.saved.size) // kept while only the cache has spoken
+
+        store.load() // live catalogue also lacks the ghost product
+
+        assertTrue(store.isEmpty)
+        assertTrue(bag.saved.isEmpty()) // live refresh made the removal final
     }
 
     @Test

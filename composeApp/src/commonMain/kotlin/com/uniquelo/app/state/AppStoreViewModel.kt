@@ -10,4 +10,8 @@ import androidx.lifecycle.ViewModel
  */
 class AppStoreViewModel : ViewModel() {
     val store: Store = Store()
+
+    override fun onCleared() {
+        store.close()
+    }
 }

@@ -185,6 +185,9 @@ class SupabaseRepository(
                 setBody(PlaceOrderPayload(order = order, items = items))
             }
             ensureSuccess(response)
+            // Drain the response so Ktor can return the connection to the pool.
+            // The function's return value is intentionally unused.
+            response.bodyAsText()
         } catch (throwable: Throwable) {
             if (throwable is CancellationException) throw throwable
             if (throwable is SupabaseException && throwable.isMissingRpcFunction) {
@@ -214,14 +217,14 @@ class SupabaseRepository(
             post("order_items", items)
         } catch (throwable: Throwable) {
             if (throwable is CancellationException) throw throwable
-            if (throwable !is SupabaseException || throwable.status >= 500 || throwable.status == 0) {
-                // Roll back the orphaned header row; ignore rollback failures
-                // (RLS may forbid it) and surface the original cause.
-                runCatching {
-                    client.delete("${SupabaseConfig.REST_URL}/orders") {
-                        parameter("id", "eq.$orderId")
-                    }
+            // Roll back the orphaned header row on any item failure; ignore
+            // rollback failures (RLS may forbid DELETE) and surface the
+            // original cause. Best-effort until place_order is deployed.
+            runCatching {
+                val response = client.delete("${SupabaseConfig.REST_URL}/orders") {
+                    parameter("id", "eq.$orderId")
                 }
+                response.bodyAsText()
             }
             throw throwable
         }
@@ -272,6 +275,8 @@ class SupabaseRepository(
             setBody(payload)
         }
         ensureSuccess(response)
+        // Consume the (empty) body so the connection is released.
+        response.bodyAsText()
     }
 
     private suspend fun ensureSuccess(response: HttpResponse) {

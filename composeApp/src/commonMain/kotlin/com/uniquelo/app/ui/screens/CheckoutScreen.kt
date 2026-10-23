@@ -52,27 +52,32 @@ import com.uniquelo.app.ui.theme.Palette
 @Composable
 fun CheckoutScreen(
     store: Store,
+    session: Int,
     onBack: () -> Unit,
 ) {
     when (val state = store.orderState) {
         is OrderState.Success -> ConfirmationScreen(store = store, order = state.order)
-        else -> CheckoutFormScreen(store = store, onBack = onBack)
+        else -> CheckoutFormScreen(store = store, session = session, onBack = onBack)
     }
 }
 
 @Composable
 private fun CheckoutFormScreen(
     store: Store,
+    session: Int,
     onBack: () -> Unit,
 ) {
-    var name by rememberSaveable { mutableStateOf("") }
-    var email by rememberSaveable { mutableStateOf("") }
-    var address by rememberSaveable { mutableStateOf("") }
-    var city by rememberSaveable { mutableStateOf("") }
-    var postal by rememberSaveable { mutableStateOf("") }
-    var country by rememberSaveable { mutableStateOf("India") }
-    var attempted by rememberSaveable { mutableStateOf(false) }
-    var formError by rememberSaveable { mutableStateOf<String?>(null) }
+    // Keyed by the checkout session: rotation restores the half-typed form,
+    // but a new checkout starts blank instead of reusing the previous
+    // customer's details.
+    var name by rememberSaveable(session) { mutableStateOf("") }
+    var email by rememberSaveable(session) { mutableStateOf("") }
+    var address by rememberSaveable(session) { mutableStateOf("") }
+    var city by rememberSaveable(session) { mutableStateOf("") }
+    var postal by rememberSaveable(session) { mutableStateOf("") }
+    var country by rememberSaveable(session) { mutableStateOf("India") }
+    var attempted by rememberSaveable(session) { mutableStateOf(false) }
+    var formError by rememberSaveable(session) { mutableStateOf<String?>(null) }
 
     val submitting = store.orderState is OrderState.Submitting
     val emailRegex = remember { Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$") }

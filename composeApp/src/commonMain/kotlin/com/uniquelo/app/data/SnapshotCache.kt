@@ -35,6 +35,7 @@ class OkioSnapshotCache(
 ) : SnapshotCache {
 
     private val file = directory / "catalog-cache.json"
+    private val temp = directory / "catalog-cache.json.tmp"
 
     init {
         fileSystem.createDirectories(directory)
@@ -50,15 +51,19 @@ class OkioSnapshotCache(
 
     override fun save(snapshot: CatalogSnapshot) {
         runCatching {
-            fileSystem.write(file, mustCreate = false) {
+            // Write then rename: a crash mid-write leaves the previous cache
+            // intact rather than a half-written JSON document.
+            fileSystem.write(temp) {
                 writeUtf8(SupabaseJson.encodeToString(CacheEnvelope(snapshot = snapshot)))
             }
+            fileSystem.atomicMove(temp, file)
         }
     }
 
     override fun clear() {
         runCatching {
-            fileSystem.delete(file)
+            if (fileSystem.exists(file)) fileSystem.delete(file)
+            if (fileSystem.exists(temp)) fileSystem.delete(temp)
         }
     }
 }

@@ -17,10 +17,12 @@ import com.uniquelo.app.data.defaultSnapshotCache
 import com.uniquelo.app.model.CartLine
 import com.uniquelo.app.model.Product
 import com.uniquelo.app.model.Variant
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 enum class Tab(val label: String) {
@@ -58,8 +60,9 @@ sealed interface SubscribeState {
  * on disk and painted immediately on launch, while a network refresh runs in
  * the background. The bag journal persists as product slug + SKU + quantity
  * and is rehydrated against the catalogue, dropping lines whose product or
- * size disappeared. It must be owned across configuration changes and process
- * death (ViewModel/app graph scope, never a plain `remember`).
+ * size disappeared. Own it from a ViewModel/app-graph scope (never a plain
+ * `remember`) so it survives configuration changes and window recreation;
+ * process death is covered by the on-disk catalogue cache and bag journal.
  */
 class Store(
     private val repository: UniqueLoRepository = SupabaseRepository(),
@@ -89,6 +92,15 @@ class Store(
     var checkoutOpen by mutableStateOf(false)
         private set
     var orderState by mutableStateOf<OrderState>(OrderState.Idle)
+        private set
+
+    /**
+     * Increments for every new checkout and keys the saveable checkout form.
+     * Rotation keeps the current session (and its half-typed form); finishing
+     * or abandoning checkout starts a clean one, so one customer's details do
+     * not reappear in the next order.
+     */
+    var checkoutSession by mutableStateOf(0)
         private set
 
     var subscribeEmail by mutableStateOf("")
@@ -176,6 +188,7 @@ class Store(
                 selectedProduct = live.products.firstOrNull { it.slug == current.slug }
             }
         } catch (throwable: Throwable) {
+            if (throwable is CancellationException) throw throwable
             when (catalogState) {
                 is CatalogState.Ready -> syncError = throwable.readableMessage()
                 else -> catalogState = CatalogState.Error(throwable.readableMessage())
@@ -189,10 +202,10 @@ class Store(
      * ranks below live in-session lines, so a refresh never shuffles what the
      * user is doing right now.
      *
-     * With [fromLive] = false (cache-served snapshot) a saved line that failed
-     * to match is kept in the journal — it may still match the live catalogue
-     * once the network refresh lands. On a live snapshot the rebuild is final
-     * whatever remains is dropped for good.
+     * With [fromLive] = false (cache-served snapshot) journal entries that do
+     * not match yet are kept and retried against the live catalogue. Only a
+     * live refresh is final: whatever still does not match is dropped for good
+     * and the disk journal is rewritten to match.
      */
     private fun rehydrateBag(snapshot: CatalogSnapshot, fromLive: Boolean) {
         if (pendingSavedLines.isEmpty() && lines.isEmpty()) return
@@ -203,32 +216,55 @@ class Store(
             val existing = requested[saved.sku]
             if (existing == null || saved.quantity > existing.quantity) requested[saved.sku] = saved
         }
+        val journalSkus = requested.keys.toSet()
         // In-session lines outrank the journal; the journal matters only at
         // cold start before the user touches anything.
         lines.forEach { line ->
             requested[line.variant.sku] = SavedLine(line.product.slug, line.variant.sku, line.quantity)
         }
 
-        val rebuilt = requested.values.mapNotNull { saved ->
-            val product = snapshot.products.firstOrNull { it.slug == saved.productSlug } ?: return@mapNotNull null
-            val variant = product.variants.firstOrNull { it.sku == saved.sku } ?: return@mapNotNull null
-            if (!variant.inStock) return@mapNotNull null
+        val rebuilt = mutableListOf<CartLine>()
+        val matched = mutableSetOf<String>()
+        requested.values.forEach { saved ->
+            val product = snapshot.products.firstOrNull { it.slug == saved.productSlug } ?: return@forEach
+            val variant = product.variants.firstOrNull { it.sku == saved.sku } ?: return@forEach
+            if (!variant.inStock) return@forEach
             val cap = if (variant.quantity > 0) variant.quantity else 10
-            CartLine(product, variant, saved.quantity.coerceIn(1, cap))
+            rebuilt += CartLine(product, variant, saved.quantity.coerceIn(1, cap))
+            matched += saved.sku
         }
 
-        if (rebuilt.isNotEmpty() || fromLive) {
-            pendingSavedLines = emptyList()
+        pendingSavedLines = if (fromLive) {
+            emptyList()
+        } else {
+            // Keep only journal entries that have not resolved yet. Matched
+            // entries now live in `lines`; in-session entries that were never
+            // in the journal are not carried into it.
+            requested.values.filter { it.sku !in matched && it.sku in journalSkus }
         }
+
         if (rebuilt != lines.toList()) {
             lines.clear()
             lines.addAll(rebuilt)
-            persistBag()
         }
+        // Persist on every pass: this keeps unmatched cache-stage entries on
+        // disk and, after a live refresh, drops the ones that are really gone.
+        persistBag()
     }
 
+    /**
+     * Writes the visible bag plus any journal entries still waiting for the
+     * live catalogue to validate them. Without the second part, editing a
+     * visible line before the refresh lands would silently forget the rest of
+     * the journal.
+     */
     private fun persistBag() {
-        bagStorage?.save(lines.map { SavedLine(it.product.slug, it.variant.sku, it.quantity) })
+        val visible = lines.map { SavedLine(it.product.slug, it.variant.sku, it.quantity) }
+        val visibleSkus = visible.mapTo(HashSet()) { it.sku }
+        val carried = pendingSavedLines
+            .filterNot { it.sku in visibleSkus }
+            .distinctBy { it.sku }
+        bagStorage?.save(visible + carried)
     }
 
     fun selectTab(next: Tab) {
@@ -282,17 +318,27 @@ class Store(
         val index = lines.indexOfFirst { it.variant.sku == sku }
         if (index < 0) return
         val line = lines[index]
-        if (line.quantity <= 1) lines.removeAt(index) else lines[index] = line.copy(quantity = line.quantity - 1)
+        if (line.quantity <= 1) {
+            lines.removeAt(index)
+            pendingSavedLines = pendingSavedLines.filterNot { it.sku == sku }
+        } else {
+            lines[index] = line.copy(quantity = line.quantity - 1)
+        }
         persistBag()
     }
 
     fun remove(sku: String) {
         lines.removeAll { it.variant.sku == sku }
+        // An explicit removal must not be undone by a journal entry that was
+        // still waiting for the live catalogue.
+        pendingSavedLines = pendingSavedLines.filterNot { it.sku == sku }
         persistBag()
     }
 
     fun requestCheckout() {
+        if (checkoutOpen) return
         if (lines.isNotEmpty()) {
+            checkoutSession += 1
             orderState = OrderState.Idle
             checkoutOpen = true
         }
@@ -308,15 +354,17 @@ class Store(
         if (orderState is OrderState.Submitting) return
         orderState = OrderState.Submitting
         scope.launch {
-            runCatching { repository.createOrder(form, lines.toList()) }
-                .onSuccess { order ->
-                    lines.clear()
-                    persistBag()
-                    orderState = OrderState.Success(order)
-                }
-                .onFailure { error ->
-                    orderState = OrderState.Error(error.readableMessage())
-                }
+            try {
+                val order = repository.createOrder(form, lines.toList())
+                lines.clear()
+                pendingSavedLines = emptyList()
+                persistBag()
+                orderState = OrderState.Success(order)
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Throwable) {
+                orderState = OrderState.Error(error.readableMessage())
+            }
         }
     }
 
@@ -324,6 +372,15 @@ class Store(
         checkoutOpen = false
         orderState = OrderState.Idle
         tab = Tab.Discover
+    }
+
+    /**
+     * Releases the store's coroutine scope. The owning ViewModel calls this
+     * from `onCleared` so an in-flight refresh cannot outlive the screen.
+     */
+    fun close() {
+        refreshJob?.cancel()
+        scope.cancel()
     }
 
     fun clearSubscribeError() {
@@ -339,23 +396,24 @@ class Store(
         }
         subscribeState = SubscribeState.Submitting
         scope.launch {
-            runCatching { repository.subscribe(clean) }
-                .onSuccess {
-                    subscribeEmail = ""
-                    subscribeState = SubscribeState.Success
-                }
-                .onFailure { error ->
-                    val message = error.message.orEmpty()
-                    subscribeState = SubscribeState.Error(
-                        if (message.contains("duplicate", ignoreCase = true) ||
-                            message.contains("unique", ignoreCase = true)
-                        ) {
-                            "You are already on the list."
-                        } else {
-                            "Couldn't subscribe right now. Please try again."
-                        },
-                    )
-                }
+            try {
+                repository.subscribe(clean)
+                subscribeEmail = ""
+                subscribeState = SubscribeState.Success
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Throwable) {
+                val message = error.message.orEmpty()
+                subscribeState = SubscribeState.Error(
+                    if (message.contains("duplicate", ignoreCase = true) ||
+                        message.contains("unique", ignoreCase = true)
+                    ) {
+                        "You are already on the list."
+                    } else {
+                        "Couldn't subscribe right now. Please try again."
+                    },
+                )
+            }
         }
     }
 

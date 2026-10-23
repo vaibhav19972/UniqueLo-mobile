@@ -33,6 +33,7 @@ class OkioBagPersistence(
 ) : BagPersistence {
 
     private val file = directory / "bag.json"
+    private val temp = directory / "bag.json.tmp"
 
     init {
         fileSystem.createDirectories(directory)
@@ -47,21 +48,27 @@ class OkioBagPersistence(
 
     override fun save(lines: List<SavedLine>) {
         runCatching {
-            fileSystem.write(file, mustCreate = false) {
-                if (lines.isEmpty()) {
-                    // An empty bag clears the journal.
-                    writeUtf8("")
-                } else {
-                    writeUtf8(SupabaseJson.encodeToString(lines))
-                }
+            if (lines.isEmpty()) {
+                // An empty bag clears the journal.
+                if (fileSystem.exists(file)) fileSystem.delete(file)
+                if (fileSystem.exists(temp)) fileSystem.delete(temp)
+                return
             }
-            if (lines.isEmpty()) runCatching { fileSystem.delete(file) }
+            // Write then rename: a crash mid-write leaves the previous journal
+            // intact rather than an empty/corrupt bag.
+            fileSystem.write(temp) {
+                writeUtf8(SupabaseJson.encodeToString(lines))
+            }
+            fileSystem.atomicMove(temp, file)
         }
     }
 
     override fun clear() {
         runCatching {
-            fileSystem.delete(file)
+            if (fileSystem.exists(file)) fileSystem.delete(file)
+        }
+        runCatching {
+            if (fileSystem.exists(temp)) fileSystem.delete(temp)
         }
     }
 }

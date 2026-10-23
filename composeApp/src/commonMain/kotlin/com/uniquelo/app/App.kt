@@ -72,6 +72,7 @@ fun App() {
                 store.checkoutOpen -> saveableStateHolder.SaveableStateProvider("checkout") {
                     CheckoutScreen(
                         store = store,
+                        session = store.checkoutSession,
                         onBack = { store.closeCheckout() },
                     )
                 }
