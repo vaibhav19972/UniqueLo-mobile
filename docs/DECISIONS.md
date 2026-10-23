@@ -19,8 +19,8 @@
 | D-11 | Accepted | Bottom-bar tab list lives in a **top-level** `destinationTabs` val — never inside `Destination`'s companion (and `label` is abstract, not defaulted): ART class-init reentrancy poisons companion-built singleton lists with `null` | landmine 8 |
 | D-12 | Accepted | Adopt backend-agent's `place_order` **v2** + `get_order_details` verbatim (SECURITY DEFINER, pinned search_path, email required, generated-uuid fallback, item fallbacks + quantity clamp) — reviewed + executed on local PG16; Android app contract unchanged; legacy fallback stays | OA-1, A12/A2, landmines 1/2 |
 | D-13 | Accepted | **Interim partial lockdown**: revoke the 6 core catalogue tables now; PRESERVE storage `product-images` uploads + `categories`/`garments`/`collections` writes — the web Admin Studio still runs on the publishable key; full lockdown (D-5/OA-2) completes when Auth is wired | OA-5, P2-2, A13 → superseded same-day by D-15 |
-| D-15 | Accepted | **Authenticated-admin catalogue lockdown** (closes D-5/D-13/OA-2/OA-5): with the Admin Studio on Supabase Auth, catalogue writes are `authenticated`-only — nine-table policy drop + anon revoke + grants/policies + storage upload moved public → `authenticated`; anon keeps read-only storefront access. Opens OA-6 (`authenticated` is not yet an admin gate) | OA-6; OA-2/OA-5 closed |
 | D-14 | Accepted | **The web repo is the backend source of truth**: mobile owns no DDL. Nine catalogue + four operational tables; reads via PostgREST embeds; writes via `place_order`/newsletter; `embroidery_details` stays one-to-one (UNIQUE). Schema changes land web-first, then mobile. | D-12, D-13, PROJECT_STATE § Backend contract |
+| D-15 | Accepted | **Authenticated-admin catalogue lockdown** (closes D-5/D-13/OA-2/OA-5): with the Admin Studio on Supabase Auth, catalogue writes are `authenticated`-only — nine-table policy drop + anon revoke + grants/policies + storage upload moved public → `authenticated`; anon keeps read-only storefront access. Opens OA-6 (`authenticated` is not yet an admin gate) | OA-6; OA-2/OA-5 closed |
 
 ---
 
@@ -189,34 +189,6 @@ in the repo as the completion artifact with a DO-NOT-DEPLOY-until-then banner.
 > variant (D-15, `20260104000000_lockdown_auth_admin.sql`). OA-2/OA-5 closed;
 > both D-13 residual risks (anonymous uploads, taxonomy defacement) are shut.
 
-## D-15 — Authenticated-admin catalogue lockdown (Accepted, 2026-10-23)
-
-**Decision.** The OA-5 trigger fired: the web Admin Studio now authenticates
-its staff (Supabase Auth) instead of writing under the bare publishable key.
-The lockdown completion shipped as
-`supabase/migrations/20260104000000_lockdown_auth_admin.sql`: drop the
-remaining public/anon write policies on all nine catalogue tables, revoke
-write grants from `anon`, grant them to `authenticated`, recreate per-table
-authenticated write policies, and move storage from the public upload policy
-to authenticated `Admin Upload` / `Admin Modify Product Images` policies. The
-D-13 interim (`20260103`) and the no-auth draft (`20260102`) remain as replay
-history — on a fresh environment the order `02 → 03 → 04` composes to the
-current hosted state.
-
-**Why.** Completes D-5 as designed and shuts both residual risks D-13 had
-accepted: anonymous uploads into `product-images` and anonymous taxonomy
-defacement are impossible while anon keeps read-only storefront access.
-Live verification (publishable-key REST, nothing written): catalogue reads
-9/9 `200`; anon `orders` read → 0 rows; anon INSERT refusal battery →
-`42501 permission denied` on all nine catalogue tables.
-
-**Known gap (OA-6).** `authenticated` means *any signed-in user*, not a
-verified admin: catalogue policies are `using (true) with check (true)` and
-the storage policies check only `bucket_id` — an ordinary customer account
-would get full catalogue write power. Gate these policies by an admin claim
-or allowlist (custom JWT claim / user-type check inside the policy
-predicates) before public sign-up ships.
-
 ## D-14 — The web repo owns the backend schema (Accepted, pre-Phase-3)
 
 **Decision.** `/Users/apple/MySpace/UniqueLo` is the single source of truth for
@@ -255,3 +227,31 @@ whose write paths determine what the lockdown may revoke.
    never overwrite it.
 4. If a backend change requires a mobile code change, the mobile commit cites
    the web-side change and does not claim to have applied it.
+
+## D-15 — Authenticated-admin catalogue lockdown (Accepted, 2026-10-23)
+
+**Decision.** The OA-5 trigger fired: the web Admin Studio now authenticates
+its staff (Supabase Auth) instead of writing under the bare publishable key.
+The lockdown completion shipped as
+`supabase/migrations/20260104000000_lockdown_auth_admin.sql`: drop the
+remaining public/anon write policies on all nine catalogue tables, revoke
+write grants from `anon`, grant them to `authenticated`, recreate per-table
+authenticated write policies, and move storage from the public upload policy
+to authenticated `Admin Upload` / `Admin Modify Product Images` policies. The
+D-13 interim (`20260103`) and the no-auth draft (`20260102`) remain as replay
+history — on a fresh environment the order `02 → 03 → 04` composes to the
+current hosted state.
+
+**Why.** Completes D-5 as designed and shuts both residual risks D-13 had
+accepted: anonymous uploads into `product-images` and anonymous taxonomy
+defacement are impossible while anon keeps read-only storefront access.
+Live verification (publishable-key REST, nothing written): catalogue reads
+9/9 `200`; anon `orders` read → 0 rows; anon INSERT refusal battery →
+`42501 permission denied` on all nine catalogue tables.
+
+**Known gap (OA-6).** `authenticated` means *any signed-in user*, not a
+verified admin: catalogue policies are `using (true) with check (true)` and
+the storage policies check only `bucket_id` — an ordinary customer account
+would get full catalogue write power. Gate these policies by an admin claim
+or allowlist (custom JWT claim / user-type check inside the policy
+predicates) before public sign-up ships.
