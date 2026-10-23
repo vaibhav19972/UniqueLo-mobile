@@ -13,7 +13,7 @@
 | 0 | git history + baseline | ✅ `a651be8` |
 | 1 | Defects & safety: rotation/process-death survival, offline-first cache, bag journal, atomic orders, saveable UI state | ✅ code complete & audited; **2 deploy actions open** |
 | 1-audit | Independent audit + fixes (`docs/phase-1-audit.md`) | ✅ `590cd3f` — 24 passed / 1 skipped, verified |
-| **2** | **Architecture: type-safe navigation, store split (Catalog/Bag/Checkout/Newsletter), DI graph, CI pipeline** | ✅ `6840046` + `37937a0` + `76f91af` ; docs+SQL `78a5d6b` ; crash fix `fd9cc30..fix(nav)` |
+| **2** | **Architecture: type-safe navigation, store split (Catalog/Bag/Checkout/Newsletter), DI graph, CI pipeline** | ✅ `6840046` + `37937a0` + `76f91af` ; docs+SQL `78a5d6b` ; crash fix `ef321c6` |
 | 3 | Design elevation: Uniqlo-inspired redesign (clean white, minimal type, red accent, LifeWear voice), dark theme, brand fonts, shared-element card→PDP, a11y | ⏳ |
 | 4 | Commerce: wishlist, order history (auth), review submission, stock validation, payments decision | ⏳ |
 | 5 | Release engineering: signed builds, R8 map, icons/splash, deep links (incl. iOS shell) | ⏳ |
@@ -71,9 +71,9 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
 | 2026-10-23 | `78a5d6b..76f91af` | assembleDebug / lintDebug | pass / 0 errors, 12 warnings (OA-3 noise unchanged) |
 | 2026-10-23 | `78a5d6b..76f91af` | compileKotlinIosSimulatorArm64 | pass (D-10) |
 | 2026-10-23 | `20260102000000_lock_catalogue_writes.sql` | A13 lockdown SQL on local PG 16.15 | **EXECUTED & verified** — 8/8 demo write policies dropped, idempotent re-run, anon SELECT retained, anon INSERT denied. First run caught a real bug (`pg_policies.permissive` is text `'PERMISSIVE'`, not `'YES'`) — Rule 1 paying for itself |
-| 2026-10-23 | `fix(nav)` (tab-init) | reproduce user crash on emulator-5554 pre-fix | **6/6 cold launches crashed** (`NoWhenBranchMatchedException`, `BottomBarKt.iconFor` line 59) — deterministic, not stale artifacts; runtime probe + javap proved `Destination.tabs[0]` was `null` (landmine 8) |
-| 2026-10-23 | `fix(nav)` (tab-init) | emulator-5554 post-fix: 8/8 cold launches | 0 crashes; then interaction smoke: Discover→Bag (journal rehydrated)→Profile→PDP→checkout overlay→back — all render, single PID, 0 exceptions |
-| 2026-10-23 | `fix(nav)` (tab-init) | full matrix (assembleDebug / unit / lintDebug / iOS target) | green — 4 suites incl. Router 10 pass; lint 0 errors / 12 warnings (OA-3) |
+| 2026-10-23 | `ef321c6` | reproduce user crash on emulator-5554 pre-fix | **6/6 cold launches crashed** (`NoWhenBranchMatchedException`, `BottomBarKt.iconFor` line 59) — deterministic, not stale artifacts; runtime probe + javap proved `Destination.tabs[0]` was `null` (landmine 8) |
+| 2026-10-23 | `ef321c6` | emulator-5554 post-fix: 8/8 cold launches | 0 crashes; then interaction smoke: Discover→Bag (journal rehydrated)→Profile→PDP→checkout overlay→back — all render, single PID, 0 exceptions |
+| 2026-10-23 | `ef321c6` | full matrix (assembleDebug / unit / lintDebug / iOS target) | green — 4 suites incl. Router 10 pass; lint 0 errors / 12 warnings (OA-3) |
 
 ## Phase 2 notes (next agents read these)
 
