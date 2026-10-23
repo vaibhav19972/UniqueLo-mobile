@@ -11,10 +11,10 @@
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | git history + baseline | ✅ `a651be8` |
-| 1 | Defects & safety: rotation/process-death survival, offline-first cache, bag journal, atomic orders, saveable UI state | ✅ code complete & audited; OA-1 deployed + live-verified; OA-2 **interim** (D-13); completion = OA-5 |
+| 1 | Defects & safety: rotation/process-death survival, offline-first cache, bag journal, atomic orders, saveable UI state | ✅ code complete & audited; OA-1 + OA-2 deployed and live-verified — authenticated-admin catalogue lockdown live (D-15) |
 | 1-audit | Independent audit + fixes (`docs/phase-1-audit.md`) | ✅ `590cd3f` — 24 passed / 1 skipped, verified |
 | **2** | **Architecture: type-safe navigation, store split (Catalog/Bag/Checkout/Newsletter), DI graph, CI pipeline** | ✅ `6840046` + `37937a0` + `76f91af` ; docs+SQL `78a5d6b` ; crash fix `ef321c6` ; audit fixes `9c5dcc4` (`docs/phase-2-audit.md`) |
-| 3 | Design elevation: Uniqlo-inspired redesign (clean white, minimal type, red accent, LifeWear voice), dark theme, brand fonts, shared-element card→PDP, a11y | ⏳ next — can start now; OA-2/OA-5 remain release gates, not design dependencies |
+| 3 | Design elevation: Uniqlo-inspired redesign (clean white, minimal type, red accent, LifeWear voice), dark theme, brand fonts, shared-element card→PDP, a11y | ⏳ next — can start now; OA-6 (admin gate on `authenticated`) is the remaining release gate, not a design dependency |
 | 4 | Commerce: wishlist, order history (auth), review submission, stock validation, payments decision | ⏳ |
 | 5 | Release engineering: signed builds, R8 map, icons/splash, deep links (incl. iOS shell) | ⏳ |
 
@@ -23,10 +23,11 @@
 | ID | Source | Action | Status |
 |---|---|---|---|
 | OA-1 | A12 | ~~Deploy `place_order_fn.sql` **v2**~~ **CLOSED**. Live-verified 2026-10-23 via publishable-key REST (read + rollback probes only, nothing written): named-args call → **400 `22023`** items-guard; `get_order_details` bad uuid → 400 `22P02`, stranger email → 200 `null`; junk-uuid-item probe → 400 **and** follow-up lookup → `null` ⇒ atomic rollback confirmed on the hosted project. Verify-form note: `{}` alone binds no args → `PGRST202` is *expected*, not a failure; use `{"p_order":{},"p_items":"[]"}` | **CLOSED — deployed + live-verified** |
-| OA-2 | A13 | ~~Full lockdown now~~ **PAUSED by D-13**: the web Admin Studio (`web repo src/pages/Admin.tsx`) writes via the publishable key — product-images storage uploads + `categories`/`garments`/`collections` upserts — and the full file breaks both. Interim instead: revoke the 6 core tables (products, variants, product_images, embroidery_details, universes, motifs) via `20260103000000_lockdown_interim.sql`; the full file stays in the repo as the OA-5 completion artifact | **PARTIAL — interim paste-run pending by owner; completion = OA-5**. Live probe 2026-10-23: anon `garments` INSERT → `201` (core writes still open; probe row deleted) |
+| OA-2 | A13 | ~~Full lockdown now~~ → **shipped 2026-10-23 as the authenticated-admin variant** `20260104000000_lockdown_auth_admin.sql` (D-15) — the Admin Studio moved to Supabase Auth, so the nine-table write policies/grants fell from `anon`, writes were granted to `authenticated`, and storage upload moved public → `authenticated`. Interim `20260103` and no-auth draft `20260102` remain as replay history (order 02 → 03 → 04) | **CLOSED — live-verified**: anon reads 9/9 `200`, `orders` read → 0 rows, anon INSERT refusal battery → `42501` on all nine tables |
 | OA-3 | A17 | AGP 8.13.2 lint analyser is a Kotlin 2.2 reader against 2.4.21 metadata — Kotlin static checks inside lint may be incomplete. Revisit when toolchain upgrades to AGP 9.x | OPEN — revisit later |
 | OA-4 | A16 | Cache/journal are read synchronously in the Store constructor (UI thread). Acceptable at MVP scale; revisit at catalogue scale | ACCEPTED (recorded) |
-| OA-5 | D-13 | When an authenticated admin gate lands on web `/admin` (or Admin Studio moves to service-role credentials): deploy the **full** `20260102000000_lock_catalogue_writes.sql` — drops taxonomy grants (categories/collections/garments) + the product-images upload policy + all permissive demo policies on the 9 tables (supersedes the interim revoke; Admin-Studio anon writes break **by design**). Verify with the file's 2 sanity queries (both → 0 rows) | OPEN — trigger: Supabase Auth / admin gate wired |
+| OA-5 | D-13 | ~~Deploy the full lockdown when an admin gate lands~~ **trigger fired 2026-10-23** — Admin Studio authenticated; completion shipped as `20260104` (D-15) rather than the bare-revoke `20260102`, which now stays as replay history | **CLOSED** |
+| OA-6 | D-15 | `authenticated` currently holds blanket admin power with no admin predicate: catalogue policies are `using (true) with check (true)`, storage policies check only `bucket_id`. Gate both by an admin claim/allowlist (e.g. custom `user_type` JWT claim inside the policy predicates) **before public sign-up ships** | OPEN — trigger: before anyone besides staff can create accounts |
 
 ## Backend contract (shared with the web project)
 
@@ -85,10 +86,11 @@ probe row that was deleted):**
 
 - `products.intensity` is in the web migration but absent from the hosted DB;
   the web adapter falls back to `expression_score`, and mobile does not read it.
-- The hosted catalogue is still publicly writable until OA-2/OA-5 (above).
-- The web Admin Studio keeps `categories`/`garments`/`collections` and
-  `product-images` uploads on the publishable key; that is why D-13 pauses the
-  full lockdown.
+- Catalogue writes are closed (2026-10-23, D-15): `anon` is read-only;
+  catalogue writes and `product-images` uploads require a signed-in
+  `authenticated` admin (the Admin Studio). OA-6 gates those writes by an
+  admin claim before public sign-up — `authenticated` alone is not an admin
+  gate yet.
 
 ## Current architecture (Phase 2 target)
 
@@ -150,6 +152,7 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
 
 | 2026-10-23 | docs audit | shared-backend consistency pass against `/Users/apple/MySpace/UniqueLo` (`schema.sql`, taxonomy migration, seeds, `data.ts`, `Admin.tsx`) | schema/table/column/embed contract matches mobile DTOs; **9 catalogue + 4 operational tables** confirmed; mobile owns no DDL (D-14). Web-owned drift recorded: hosted lacks `products.intensity` (migration `20261013` unapplied) |
 | 2026-10-23 | docs audit | hosted backend probes (publishable key, read-only except one probe row that was deleted) | `place_order` → `22023`; `get_order_details` → `22P02`; `embroidery_details` embeds as object; anon `garments` INSERT → `201` ⇒ interim lockdown not applied; probe row deleted, no net data change |
+| 2026-10-23 | `20260104` (D-15) | authenticated-admin lockdown live checks — publishable-key REST, refusal battery only (nothing written) | **PASS** — catalogue reads 9/9 `200` (storefront intact), `reviews` read `200`, `orders` anon read → `200` with **0 rows** (no leak); anon INSERT → `42501 permission denied` on **all nine** catalogue tables (5 via type-valid `{name,slug}` probes, 4 via explicit-null probes against DTO-confirmed columns; was `23502`/`201` pre-lockdown). Storage not probe-tested (stray-object risk) — authenticated path to be proven by the Admin Studio sign-in smoke |
 
 > The earlier `8/8` lockdown row was a reduced eight-table fixture. The
 > authoritative full-schema result is the `9c5dcc4` row above: the real

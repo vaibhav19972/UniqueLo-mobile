@@ -1,3 +1,6 @@
+-- ✅ SUPERSEDED 2026-10-23 by 20260104000000_lockdown_auth_admin.sql (D-15) —
+--    the OA-5 trigger fired (Admin Studio authenticated); retained for fresh-
+--    environment replay history (order 02 → 03 → 04 composes correctly).
 -- ─────────────────────────────────────────────────────────────────────────────
 -- INTERIM catalogue write lockdown (D-13) — core-only revoke.
 --

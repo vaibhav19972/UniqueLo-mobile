@@ -1,13 +1,12 @@
 -- ═════════════════════════════════════════════════════════════════════════════
--- ⛔ PAUSED — DO NOT DEPLOY until Supabase Auth / an admin gate is wired (OA-5,
---    decided in D-13, 2026-10-23).
---    The web Admin Studio (web repo `src/pages/Admin.tsx`) still performs its
---    photography uploads and taxonomy upserts under the PUBLIC publishable
---    key; deploying THIS file breaks both. The deployed interim state is the
---    reduced revoke in `20260103000000_lockdown_interim.sql`. When the admin
---    flow authenticates, run THIS file in full — its revokes supersede the
---    interim (idempotent) and it also drops the product-images upload policy,
---    at which point Admin-Studio anon writes fail by design.
+-- ℹ️ SUPERSEDED (2026-10-23, D-15/OA-5) — the lockdown completion shipped as
+--    `20260104000000_lockdown_auth_admin.sql`: the Admin Studio moved to
+--    Supabase Auth, so the finish line became the authenticated-admin variant
+--    (this file's anon revokes + grants/policies/storage for `authenticated`
+--    there) rather than this file's blanket revoke. Kept for fresh-environment
+--    replay history: `02 → 03 → 04` in order composes to the current hosted
+--    state (this file's revoke from `authenticated` is re-granted by
+--    20260104 step 3). Do not re-run standalone against a live project.
 -- ═════════════════════════════════════════════════════════════════════════════
 
 -- ─────────────────────────────────────────────────────────────────────────────
