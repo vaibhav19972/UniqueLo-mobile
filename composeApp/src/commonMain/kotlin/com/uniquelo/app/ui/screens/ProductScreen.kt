@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,9 +60,9 @@ fun ProductScreen(
     onBack: () -> Unit,
 ) {
     val colors = product.colors
-    var selectedColor by remember(product.slug) { mutableStateOf(colors.firstOrNull()?.name) }
-    var selectedSize by remember(product.slug) { mutableStateOf<String?>(null) }
-    var added by remember(product.slug) { mutableStateOf(false) }
+    var selectedColor by rememberSaveable(product.slug) { mutableStateOf(colors.firstOrNull()?.name) }
+    var selectedSize by rememberSaveable(product.slug) { mutableStateOf<String?>(null) }
+    var added by rememberSaveable(product.slug) { mutableStateOf(false) }
 
     val selectedVariant = product.variants.firstOrNull {
         it.color == selectedColor && it.size == selectedSize

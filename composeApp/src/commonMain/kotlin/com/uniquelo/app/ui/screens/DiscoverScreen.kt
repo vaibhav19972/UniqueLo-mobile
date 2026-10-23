@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -57,6 +59,7 @@ import com.uniquelo.app.ui.theme.Palette
 fun DiscoverScreen(
     store: Store,
     onOpenProduct: (Product) -> Unit,
+    listState: LazyListState = rememberLazyListState(),
 ) {
     val results = store.results
     val searching = store.query.isNotBlank()
@@ -64,6 +67,7 @@ fun DiscoverScreen(
     val rows = results.chunked(2)
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 28.dp),
     ) {
@@ -104,6 +108,15 @@ fun DiscoverScreen(
             }
 
             else -> {
+                if (store.syncError != null) {
+                    item {
+                        SyncBanner(
+                            message = store.syncError.orEmpty(),
+                            onRetry = { store.retry() },
+                        )
+                    }
+                }
+
                 if (!searching && store.universes.isNotEmpty()) {
                     item {
                         Spacer(Modifier.height(22.dp))
@@ -718,6 +731,41 @@ private fun LoadingBlock() {
             text = "Opening the atelier…",
             style = MaterialTheme.typography.bodyMedium,
             color = Palette.Muted,
+        )
+    }
+}
+
+@Composable
+private fun SyncBanner(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(top = 12.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(Palette.Sand)
+            .padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Palette.Ink,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = "RETRY",
+            style = MaterialTheme.typography.labelSmall,
+            color = Palette.Rust,
+            modifier = Modifier
+                .clickable(onClick = onRetry)
+                .padding(horizontal = 6.dp, vertical = 6.dp),
         )
     }
 }

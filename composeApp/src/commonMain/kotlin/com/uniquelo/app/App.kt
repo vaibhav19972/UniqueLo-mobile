@@ -8,16 +8,18 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.ImageLoader
 import coil3.compose.setSingletonImageLoaderFactory
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.request.crossfade
 import com.uniquelo.app.data.platformHttpEngine
+import com.uniquelo.app.state.AppStoreViewModel
 import com.uniquelo.app.state.Store
 import com.uniquelo.app.state.Tab
 import com.uniquelo.app.ui.PlatformBackHandler
@@ -35,8 +37,11 @@ fun App() {
     UniqueLoTheme {
         InstallImageLoader()
 
-        val scope = rememberCoroutineScope()
-        val store = remember(scope) { Store(scope = scope) }
+        // The store is owned by the ViewModelStoreOwner (activity on Android,
+        // the view controller on iOS), not by the composition: rotating the
+        // device or recreating the window keeps the catalogue, bag and
+        // selected product intact.
+        val store: Store = viewModel { AppStoreViewModel() }.store
 
         LaunchedEffect(store) {
             store.load()
@@ -54,6 +59,9 @@ fun App() {
             }
         }
 
+        val saveableStateHolder = rememberSaveableStateHolder()
+        val discoverListState = rememberLazyListState()
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -61,16 +69,20 @@ fun App() {
                 .windowInsetsPadding(WindowInsets.safeDrawing),
         ) {
             when {
-                store.checkoutOpen -> CheckoutScreen(
-                    store = store,
-                    onBack = { store.closeCheckout() },
-                )
+                store.checkoutOpen -> saveableStateHolder.SaveableStateProvider("checkout") {
+                    CheckoutScreen(
+                        store = store,
+                        onBack = { store.closeCheckout() },
+                    )
+                }
 
-                product != null -> ProductScreen(
-                    product = product,
-                    store = store,
-                    onBack = { store.closeProduct() },
-                )
+                product != null -> saveableStateHolder.SaveableStateProvider("pdp/${product.slug}") {
+                    ProductScreen(
+                        product = product,
+                        store = store,
+                        onBack = { store.closeProduct() },
+                    )
+                }
 
                 else -> Column(modifier = Modifier.fillMaxSize()) {
                     Crossfade(
@@ -78,20 +90,26 @@ fun App() {
                         modifier = Modifier.weight(1f),
                         label = "tab",
                     ) { tab ->
-                        when (tab) {
-                            Tab.Discover -> DiscoverScreen(
-                                store = store,
-                                onOpenProduct = { store.open(it) },
-                            )
+                        // State (scroll, PDP selections, checkout form) is
+                        // preserved across tab switches and device rotation
+                        // via the saveable state holder keyed by destination.
+                        saveableStateHolder.SaveableStateProvider(tab.name) {
+                            when (tab) {
+                                Tab.Discover -> DiscoverScreen(
+                                    store = store,
+                                    onOpenProduct = { store.open(it) },
+                                    listState = discoverListState,
+                                )
 
-                            Tab.Bag -> BagScreen(
-                                store = store,
-                                onBrowse = { store.selectTab(Tab.Discover) },
-                            )
+                                Tab.Bag -> BagScreen(
+                                    store = store,
+                                    onBrowse = { store.selectTab(Tab.Discover) },
+                                )
 
-                            Tab.Profile -> ProfileScreen(
-                                onBrowse = { store.selectTab(Tab.Discover) },
-                            )
+                                Tab.Profile -> ProfileScreen(
+                                    onBrowse = { store.selectTab(Tab.Discover) },
+                                )
+                            }
                         }
                     }
                     UniqueLoBottomBar(store)

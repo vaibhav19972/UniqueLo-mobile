@@ -9,6 +9,7 @@ import com.uniquelo.app.model.Review
 import com.uniquelo.app.model.Universe
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -18,12 +19,17 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlin.random.Random
 
+@Serializable
 data class CatalogSnapshot(
     val products: List<Product>,
     val universes: List<Universe>,
@@ -48,7 +54,18 @@ data class PlacedOrder(
     val email: String,
 )
 
-class SupabaseException(message: String) : Exception(message)
+class SupabaseException(message: String, val status: Int = 0) : Exception(message) {
+    /** PostgREST reports a missing RPC as 404/PGRST202 (or 501 on some versions). */
+    val isMissingRpcFunction: Boolean
+        get() = status == 404 || status == 501
+}
+
+/** Payload for the atomic `place_order` Postgres function. */
+@Serializable
+private data class PlaceOrderPayload(
+    @SerialName("p_order") val order: OrderInsert,
+    @SerialName("p_items") val items: List<OrderItemInsert>,
+)
 
 interface UniqueLoRepository {
     suspend fun loadCatalog(): CatalogSnapshot
@@ -145,9 +162,6 @@ class SupabaseRepository(
                 "country" to form.country.trim(),
             ),
         )
-
-        post("orders", order)
-
         val items = lines.map { line ->
             OrderItemInsert(
                 id = newUuid(),
@@ -161,13 +175,56 @@ class SupabaseRepository(
                 priceCents = line.variant.priceCents,
             )
         }
-        post("order_items", items)
+
+        try {
+            // Preferred path: one atomic Postgres function writes the order
+            // header and its items in a single transaction. The SQL lives in
+            // supabase/migrations.
+            val response = client.post("${SupabaseConfig.REST_URL}/rpc/place_order") {
+                contentType(ContentType.Application.Json)
+                setBody(PlaceOrderPayload(order = order, items = items))
+            }
+            ensureSuccess(response)
+        } catch (throwable: Throwable) {
+            if (throwable is CancellationException) throw throwable
+            if (throwable is SupabaseException && throwable.isMissingRpcFunction) {
+                // The project has not applied the migration yet — fall back to
+                // the legacy two-call write, with a compensating delete so a
+                // half-written order is never left behind.
+                createOrderLegacy(order, items, orderId)
+            } else {
+                throw throwable
+            }
+        }
 
         return PlacedOrder(
             id = orderId,
             code = "UL-" + orderId.replace("-", "").take(8).uppercase(),
             email = order.customerEmail,
         )
+    }
+
+    private suspend fun createOrderLegacy(
+        order: OrderInsert,
+        items: List<OrderItemInsert>,
+        orderId: String,
+    ) {
+        post("orders", order)
+        try {
+            post("order_items", items)
+        } catch (throwable: Throwable) {
+            if (throwable is CancellationException) throw throwable
+            if (throwable !is SupabaseException || throwable.status >= 500 || throwable.status == 0) {
+                // Roll back the orphaned header row; ignore rollback failures
+                // (RLS may forbid it) and surface the original cause.
+                runCatching {
+                    client.delete("${SupabaseConfig.REST_URL}/orders") {
+                        parameter("id", "eq.$orderId")
+                    }
+                }
+            }
+            throw throwable
+        }
     }
 
     override suspend fun subscribe(email: String) {
@@ -181,12 +238,31 @@ class SupabaseRepository(
         select: String = "*",
         order: String? = null,
     ): List<T> {
+        // Bounded exponential backoff for transient read failures (connect /
+        // timeout / 5xx). 4xx fails fast — retrying won't change the outcome.
+        var delayMs = 400L
+        repeat(2) {
+            try {
+                val response = client.get("${SupabaseConfig.REST_URL}/$path") {
+                    parameter("select", select)
+                    if (order != null) parameter("order", order)
+                }
+                ensureSuccess(response)
+                return response.body<List<T>>()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (error: Throwable) {
+                if (error is SupabaseException && error.status < 500) throw error
+                delay(delayMs)
+                delayMs *= 2
+            }
+        }
         val response = client.get("${SupabaseConfig.REST_URL}/$path") {
             parameter("select", select)
             if (order != null) parameter("order", order)
         }
         ensureSuccess(response)
-        return response.body()
+        return response.body<List<T>>()
     }
 
     private suspend inline fun <reified T> post(path: String, payload: T) {
@@ -201,7 +277,7 @@ class SupabaseRepository(
     private suspend fun ensureSuccess(response: HttpResponse) {
         if (response.status.value in 200..299) return
         val raw = response.bodyAsText()
-        throw SupabaseException(readError(raw, response.status.value))
+        throw SupabaseException(readError(raw, response.status.value), response.status.value)
     }
 
     private fun readError(raw: String, status: Int): String {

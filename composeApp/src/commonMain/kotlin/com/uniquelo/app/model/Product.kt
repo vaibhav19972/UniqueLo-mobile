@@ -1,5 +1,7 @@
 package com.uniquelo.app.model
 
+import kotlinx.serialization.Serializable
+
 /**
  * Domain models for the UniqueLo catalogue.
  *
@@ -9,6 +11,7 @@ package com.uniquelo.app.model
  * `universes`, `categories`, `collections` and `motifs` is folded into [Product].
  */
 
+@Serializable
 data class ThemeTokens(
     val bg: String? = null,
     val ink: String? = null,
@@ -21,6 +24,7 @@ data class ThemeTokens(
         get() = bg == null && ink == null && accent == null && accent2 == null
 }
 
+@Serializable
 data class Universe(
     val slug: String,
     val name: String,
@@ -31,6 +35,7 @@ data class Universe(
     val orderNum: Int,
 )
 
+@Serializable
 data class Category(
     val slug: String,
     val name: String,
@@ -38,6 +43,7 @@ data class Category(
     val description: String,
 )
 
+@Serializable
 data class Collection(
     val slug: String,
     val name: String,
@@ -46,6 +52,7 @@ data class Collection(
     val featured: Boolean,
 )
 
+@Serializable
 data class Motif(
     val id: String,
     val universeSlug: String?,
@@ -54,6 +61,7 @@ data class Motif(
     val symbolNotes: String?,
 )
 
+@Serializable
 data class Variant(
     val sku: String,
     val productSlug: String,
@@ -80,11 +88,13 @@ data class Variant(
         }
 }
 
+@Serializable
 data class VariantColor(
     val name: String,
     val hex: String,
 )
 
+@Serializable
 data class ProductImage(
     val src: String,
     val alt: String,
@@ -95,6 +105,7 @@ data class ProductImage(
         get() = src.startsWith("http://") || src.startsWith("https://")
 }
 
+@Serializable
 data class Embroidery(
     val technique: String,
     val techniqueLabel: String,
@@ -106,6 +117,7 @@ data class Embroidery(
     val macroImageAlt: String?,
 )
 
+@Serializable
 data class Review(
     val id: String,
     val productSlug: String,
@@ -116,6 +128,7 @@ data class Review(
     val verified: Boolean,
 )
 
+@Serializable
 data class Product(
     val slug: String,
     val name: String,
