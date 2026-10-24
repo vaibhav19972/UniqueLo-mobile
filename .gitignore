@@ -11,3 +11,6 @@ captures/
 *.xcuserstate
 xcuserdata/
 iosApp/Pods/
+# iosApp.xcodeproj is generated from iosApp/project.yml by XcodeGen — see
+# iosApp/README.md. Commit the spec, not the project file.
+/iosApp/iosApp.xcodeproj/

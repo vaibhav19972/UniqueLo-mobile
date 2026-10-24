@@ -245,7 +245,10 @@ fun UniqueLoTheme(
     val colors = if (dark) DarkUniqueLoColors else LightUniqueLoColors
 
     CompositionLocalProvider(LocalUniqueLoColors provides colors) {
-        SystemBarsEffect(darkTheme = dark)
+        SystemBarsEffect(
+            darkTheme = dark,
+            followSystem = themeMode == ThemeMode.System,
+        )
         MaterialTheme(
             colorScheme = scheme(colors, dark),
             typography = uniqueLoTypography(satoshiFamily()),

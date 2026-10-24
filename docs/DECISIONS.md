@@ -15,13 +15,14 @@
 | D-7 | Deferred | Order idempotency (retry-safe order ids) — **trigger: payment integration** | A15 |
 | D-8 | Accepted | Hand-rolled DI (`AppGraph`) over a framework (Koin/Hilt); revisit if modules multiply | — |
 | D-9 | Accepted | CI = GitHub Actions, macOS runner, full matrix (assemble + unit + lint + iOS target) | — |
-| D-10 | Accepted | Android-first; iOS KMP target must always compile, no iOS app shell yet | — |
+| D-10 | Superseded | Android-first; iOS KMP target must always compile, no iOS app shell yet → **superseded by D-17** (shell now exists) | D-17 |
 | D-11 | Accepted | Bottom-bar tab list lives in a **top-level** `destinationTabs` val — never inside `Destination`'s companion (and `label` is abstract, not defaulted): ART class-init reentrancy poisons companion-built singleton lists with `null` | landmine 8 |
 | D-12 | Accepted | Adopt backend-agent's `place_order` **v2** + `get_order_details` verbatim (SECURITY DEFINER, pinned search_path, email required, generated-uuid fallback, item fallbacks + quantity clamp) — reviewed + executed on local PG16; Android app contract unchanged; legacy fallback stays | OA-1, A12/A2, landmines 1/2 |
 | D-13 | Superseded | **Interim partial lockdown**: revoke the 6 core catalogue tables now; PRESERVE storage `product-images` uploads + `categories`/`garments`/`collections` writes — the web Admin Studio still runs on the publishable key; full lockdown (D-5/OA-2) completes when Auth is wired | OA-5, P2-2, A13 → superseded same-day by D-15 |
 | D-14 | Accepted | **The web repo is the backend source of truth**: mobile owns no DDL. Nine catalogue + four operational tables; reads via PostgREST embeds; writes via `place_order`/newsletter; `embroidery_details` stays one-to-one (UNIQUE). Schema changes land web-first, then mobile. | D-12, D-13, PROJECT_STATE § Backend contract |
 | D-15 | Accepted | **Authenticated-admin catalogue lockdown** (closes D-5/D-13/OA-2/OA-5): with the Admin Studio on Supabase Auth, catalogue writes are `authenticated`-only — nine-table policy drop + anon revoke + grants/policies + storage upload moved public → `authenticated`; anon keeps read-only storefront access. Opens OA-6 (`authenticated` is not yet an admin gate) | OA-6; OA-2/OA-5 closed |
 | D-16 | Accepted | **Phase 3 design system**: Uniqlo-inspired paper/ink shell + one red accent, self-hosted Satoshi, theme-aware `Palette` (Ink/Paper invert; fixed image/inverse tokens), persisted System/Light/Dark, Android-only shared-element card→PDP, 48dp/contrast/semantics contract | D-15; PROJECT_STATE § Phase 3 |
+| D-17 | Accepted | **iOS app shell added** (`iosApp/`, XcodeGen `project.yml` → generated `iosApp.xcodeproj`): full-bleed SwiftUI `@main` hosting `MainViewController()` (Compose owns safe-area/keyboard insets), pre-build phase runs `embedAndSignAppleFrameworkForXcode`, script sandboxing off, iOS 15 deployment target, bundle id `com.uniquelo.app` mirroring Android, theme-aware status bar/keyboard via `overrideUserInterfaceStyle`, red/white icon + `LaunchBackground` matching `Palette.Bone`. Shared UI stays 100% `commonMain`; no iOS-specific screens (platform actuals only) | supersedes D-10; D-16 |
 
 ---
 
@@ -282,8 +283,11 @@ for the two cases where inversion is wrong:
 is read synchronously when the store is constructed (same accepted OA-4
 trade-off as the cache/journal) so the first frame has the right theme. Writes
 are temp-file → `atomicMove`; a corrupt/missing value falls back to `System`.
-Android system-bar icon appearance follows the resolved theme via a
-`SystemBarsEffect` expect/actual; iOS is a no-op.
+Android and iOS system-bar/keyboard appearance follows the resolved theme via
+`SystemBarsEffect`: Android uses the insets controller; iOS overrides the key
+window's `overrideUserInterfaceStyle` so status-bar icons and the keyboard
+match the in-app theme even when the system appearance differs. System mode
+clears the override (`Unspecified`) so live OS changes are followed.
 
 **Typography/licence.** Satoshi OTF files are self-hosted in
 `composeApp/src/commonMain/composeResources/font/` and loaded through Compose

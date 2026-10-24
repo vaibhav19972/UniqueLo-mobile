@@ -16,7 +16,7 @@
 | **2** | **Architecture: type-safe navigation, store split (Catalog/Bag/Checkout/Newsletter), DI graph, CI pipeline** | ✅ `6840046` + `37937a0` + `76f91af` ; docs+SQL `78a5d6b` ; crash fix `ef321c6` ; audit fixes `9c5dcc4` (`docs/phase-2-audit.md`) |
 | **3** | **Design elevation: Uniqlo-inspired shell, Satoshi typography, 3-state theme, shared-element card→PDP, 48dp targets + contrast pass** | ✅ design complete in this commit — `assembleDebug`, 47 tests, lint, iOS target all green; OA-6 remains the release gate, not a design dependency |
 | 4 | Commerce: wishlist, order history (auth), review submission, stock validation, payments decision | ⏳ |
-| 5 | Release engineering: signed builds, R8 map, icons/splash, deep links (incl. iOS shell) | ⏳ |
+| 5 | Release engineering: signed builds, R8 map, icons/splash, deep links | ⏳ (iOS icon/launch asset done in D-17) |
 
 ## Open actions (any agent may pick up; mark status when done)
 
@@ -111,6 +111,46 @@ stores (ViewModel-owned); transient UI state uses `rememberSaveable` with
 **session-scoped keys**; nothing lives in bare `remember` if it must survive
 rotation.
 
+## iOS app shell (D-17)
+
+`iosApp/` is the thin Swift shell around the shared Compose UI; the UI itself
+stays 100% `commonMain`. **`iosApp.xcodeproj` is generated** — the spec
+`iosApp/project.yml` is the source of truth and the project file is gitignored:
+
+```bash
+xcodegen --spec iosApp/project.yml    # after editing project.yml or adding Swift files
+open iosApp/iosApp.xcodeproj
+```
+
+- The `Compile Kotlin Framework` pre-build phase invokes
+  `./gradlew :composeApp:embedAndSignAppleFrameworkForXcode`, so the framework
+  always matches Xcode's configuration/arch/SDK. The framework is static, so
+  Xcode skips the embed/sign copy step; `assembleDebugAppleFrameworkForXcode`
+  builds the archive. `ENABLE_USER_SCRIPT_SANDBOXING = NO` is required for that
+  phase (Gradle writes into the source tree). For Xcode-only UI work,
+  `OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED=YES` skips the Gradle phase.
+- `UniqueLoApp.swift` is full-bleed (`.ignoresSafeArea()`): Compose draws the
+  background under the device safe area and pads content with
+  `WindowInsets.safeDrawing`; SwiftUI must not add a second inset.
+- `SystemBarsEffect.ios.kt` overrides the key window's interface style from the
+  resolved theme, so status-bar icons and the keyboard follow the in-app
+  Light/Dark choice even when the system appearance differs. In System mode it
+  clears the override (`Unspecified`), so live OS appearance changes apply.
+- Bundle id `com.uniquelo.app` mirrors the Android `applicationId`; deployment
+  target iOS 15.0 (chosen minimum). Xcode 27.1 emits a non-fatal linker warning
+  because the bundled ICU data object was built for iOS-simulator 17.2 while
+  linking at 15.0; the object has a zero-byte `__text` section (data only).
+  Older iOS runtimes were not available to test, so the warning is recorded
+  rather than hidden.
+- `PlatformBackHandler.ios.kt` is still a no-op — in-app back chrome drives
+  navigation. The interactive pop gesture is out of scope until there is a
+  `UINavigationController`.
+- Requires **full Xcode**. With Command Line Tools only, the Kotlin iOS target
+  still *compiles* (`compileKotlinIosSimulatorArm64`) but cannot *link*
+  (`xcrun xcodebuild -version` fails → `MissingXcodeException`). This host now
+  has Xcode 27.1; the shell has been compiled and launched (see verification
+  history).
+
 ## State-retention matrix (the single source of truth for "what persists")
 
 | State | Tab switch | Rotation | Process death | Notes |
@@ -158,12 +198,23 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
 | 2026-10-23 | this commit (D-16) | unit tests (fresh run) | **46 passed / 1 skipped / 0 failures** (47: Router 10, RootStore 14, Bag 7, Catalog 3, LocalPersistence 8, ThemeStore 4, live skipped) |
 | 2026-10-23 | this commit (D-16) | assembleDebug / lintDebug / compileKotlinIosSimulatorArm64 | pass / **0 errors, 12 warnings** (OA-3 dependency noise unchanged) / pass |
 | 2026-10-23 | this commit (D-16) | design/a11y review | dynamic light/dark `Palette`; Satoshi fonts + licence checked in; 48dp targets; selectable semantics; image scrims fixed across themes; no hardcoded white-on-photo text |
+| 2026-10-23 | this commit (D-17) | unit tests / assembleDebug / lintDebug / compileKotlinIosSimulatorArm64 (fresh run) | **47 tests, 46 passed / 1 skipped / 0 failures**; assembleDebug pass; lint 0 errors / 12 warnings (OA-3 unchanged); iOS Kotlin target compiles |
+| 2026-10-24 | working tree (D-17) | iOS **link** + shell build (`xcodegen --spec iosApp/project.yml`; `xcodebuild -scheme UniqueLo -destination 'generic/platform=iOS Simulator'`) | **PASS** — Xcode 27.1 `BUILD SUCCEEDED`; app installed and launched on iPhone Duo (iOS 27.1). Linker warning only: `libicu.icudtl_dat.o` built for iOS-simulator 17.2 vs link target 15.0; inspected object is 6.3 MB of `__const` with a 0-byte `__text` (data-only), so the target stays at 15.0. Older iOS runtimes were not available to test. |
+| 2026-10-24 | working tree (D-17) | iOS appearance/layout smoke (iPhone Duo, iOS 27.1) | **PASS** — full-bleed background; app-Light/system-Dark → dark status-bar icons on light UI; app-Dark/system-Light → white status-bar icons on dark UI; System mode also flips dark→light live without relaunch; content respects the foldable's right safe-area inset; single process, no crash/fatal. Only this simulator/runtime is installed, so standard iPhone/iPad layouts remain untested. |
+| 2026-10-24 | working tree (D-17) | Android runtime smoke, emulator-5554 (API 36) post-install | **PASS** — launched, single PID `com.uniquelo.app`, no `FATAL EXCEPTION`; Discover renders live hosted catalogue; tapped product → PDP `Embroidered Linen Halter` (₹1,490, BATCH 01/50, 6 carousel dots); `cmd uimode night yes` flips the same process to the dark UI with light status-bar icons |
+| 2026-10-24 | working tree (D-17) | shell generation + scheme audit | `xcodegen --spec iosApp/project.yml` regenerates one `UniqueLo` app target; the shared scheme has no environment variables (the earlier malformed `OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED` value is gone); `CODE_SIGN_IDENTITY = Apple Development`; no `DEVELOPMENT_TEAM`; `iosApp.xcodeproj` remains gitignored; `Info.plist` and asset catalogs validate during build |
 | 2026-10-23 | this commit (D-16) | theme persistence tests | 4 `ThemeStore` tests + 2 `OkioThemePersistence` round-trip/corrupt-file tests; temp file removed after atomic rename |
 
 > The earlier `8/8` lockdown row was a reduced eight-table fixture. The
 > authoritative full-schema result is the `9c5dcc4` row above: the real
 > `schema.sql` has **23** write policies across **nine** catalogue tables,
 > plus the public storage upload policy.
+
+> D-15 probe-method note: the five `{name,slug}` catalogue INSERT probes were
+> shape-valid and could have written if the policy (and remaining constraints)
+> had allowed it. Their safety came from the `42501` refusal, not the payload
+> shape; future negative tests should use guaranteed-invalid payloads. The D-15 row is the 2026-10-23 run and its
+> write probes were not re-run during the D-17 shell pass.
 
 ## Phase 2 notes (next agents read these)
 

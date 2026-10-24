@@ -10,7 +10,13 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 @Composable
-actual fun SystemBarsEffect(darkTheme: Boolean) {
+actual fun SystemBarsEffect(
+    darkTheme: Boolean,
+    followSystem: Boolean,
+) {
+    // Android has no "unspecified" inset-controller value; `darkTheme` is
+    // already resolved from isSystemInDarkTheme() and recomposes on a config
+    // change, so System mode needs no special handling here.
     val view = LocalView.current
     val context = LocalContext.current
     if (!view.isInEditMode) {
