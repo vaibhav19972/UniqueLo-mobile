@@ -34,10 +34,10 @@
 The mobile app does **not** own database DDL. The authoritative backend is the
 web repository:
 
-- `/Users/apple/MySpace/UniqueLo/supabase/schema.sql` — tables, indexes, RLS,
+- `/Users/apple/UniqueLo/backend/schema.sql` — tables, indexes, RLS,
   storage bucket
 - `supabase/migrations/20261013_taxonomy_columns.sql` — taxonomy columns
-- `supabase/production-seed.sql` / `supabase/seed.sql` — hosted catalogue data
+- `../backend/production-seed.sql` / `../backend/seed.sql` — hosted catalogue data
 - Hosted project: `https://heimnfjuwmmmejqcjbbd.supabase.co`
 
 Any schema change lands in the web repo first, is applied to the hosted
@@ -192,7 +192,7 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
 | 2026-10-23 | `9c5dcc4` | lockdown re-run on **full** `schema.sql` + Supabase-style grants (PG 16.15) | 23 catalogue write policies on nine tables **+ public `product-images` upload policy** dropped; idempotent; anon SELECT retained; anon catalogue writes denied; guest orders/order_items/newsletter and `place_order` still work |
 | 2026-10-23 | `9c5dcc4` | system back during/after checkout | regression fixed + 3 tests: submitting cannot pop; back abandons the session; back after success closes it |
 
-| 2026-10-23 | docs audit | shared-backend consistency pass against `/Users/apple/MySpace/UniqueLo` (`schema.sql`, taxonomy migration, seeds, `data.ts`, `Admin.tsx`) | schema/table/column/embed contract matches mobile DTOs; **9 catalogue + 4 operational tables** confirmed; mobile owns no DDL (D-14). Web-owned drift recorded: hosted lacks `products.intensity` (migration `20261013` unapplied) |
+| 2026-10-23 | docs audit | shared-backend consistency pass against `/Users/apple/UniqueLo/backend` (`schema.sql`, taxonomy migration, seeds, `data.ts`, `Admin.tsx`) | schema/table/column/embed contract matches mobile DTOs; **9 catalogue + 4 operational tables** confirmed; mobile owns no DDL (D-14). Web-owned drift recorded: hosted lacks `products.intensity` (migration `20261013` unapplied) |
 | 2026-10-23 | docs audit | hosted backend probes (publishable key, read-only except one probe row that was deleted) | `place_order` → `22023`; `get_order_details` → `22P02`; `embroidery_details` embeds as object; anon `garments` INSERT → `201` at that moment ⇒ interim lockdown not yet applied; probe row deleted, no net data change. Superseded by the D-15 row below. |
 | 2026-10-23 | `20260104` (D-15) | authenticated-admin lockdown live checks — publishable-key REST, refusal battery only (nothing written) | **PASS** — catalogue reads 9/9 `200` (storefront intact), `reviews` read `200`, `orders` anon read → `200` with **0 rows** (no leak); anon INSERT → `42501 permission denied` on **all nine** catalogue tables (5 via type-valid `{name,slug}` probes, 4 via explicit-null probes against DTO-confirmed columns; was `23502`/`201` pre-lockdown). Storage not probe-tested (stray-object risk) — authenticated path to be proven by the Admin Studio sign-in smoke |
 | 2026-10-23 | this commit (D-16) | unit tests (fresh run) | **46 passed / 1 skipped / 0 failures** (47: Router 10, RootStore 14, Bag 7, Catalog 3, LocalPersistence 8, ThemeStore 4, live skipped) |

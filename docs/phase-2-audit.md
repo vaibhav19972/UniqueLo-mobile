@@ -22,7 +22,7 @@ and OA-2 are applied by someone with Supabase dashboard access.
 
 - Read every Phase 2 code, test, SQL and doc change against `590cd3f`.
 - Exercised the lockdown on a **fresh local PostgreSQL 16.15 database built from
-  the real `supabase/schema.sql` DDL**, with Supabase-style `anon` /
+  the real `../backend/schema.sql` DDL**, with Supabase-style `anon` /
   `authenticated` roles and default table grants (not a reduced fixture).
 - Verified both before/after states as `anon`: catalogue reads, catalogue
   writes, guest order/order-item/newsletter inserts, and `place_order`.
@@ -183,7 +183,7 @@ against the hosted project.
   guarded `onBack()`.
 - `composeApp/src/commonTest/kotlin/com/uniquelo/app/RootStoreTest.kt`,
   `TestSupport.kt` — gated order fake + 3 system-back tests.
-- `supabase/migrations/20260102000000_lock_catalogue_writes.sql` — garments,
+- `../backend/migrations/20260102000000_lock_catalogue_writes.sql` — garments,
   role-overlap matching, storage upload policy, corrected evidence.
 - `.github/workflows/ci.yml` — remove no-op licence step; timeout/permissions.
 - `README.md`, `docs/PROJECT_STATE.md`, `docs/DECISIONS.md` — Phase 2 truth.

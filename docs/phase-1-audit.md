@@ -130,7 +130,7 @@ Kotlin static checks ran until the toolchain is aligned.
 
 **Must do before calling Phase 1 deployed:**
 
-1. Apply `supabase/migrations/20260101000000_place_order_fn.sql` to the hosted
+1. Apply `../backend/migrations/20260101000000_place_order_fn.sql` to the hosted
    project, then verify the RPC exists. A safe probe is a POST with `{}`:
    it should return a 400 validation error (function runs) rather than
    `404 PGRST202` (function missing). Run one real checkout and confirm both
@@ -158,7 +158,7 @@ Kotlin static checks ran until the toolchain is aligned.
 
 ## Files changed in this audit
 
-- `supabase/migrations/20260101000000_place_order_fn.sql` — defaults, RLS-safe
+- `../backend/migrations/20260101000000_place_order_fn.sql` — defaults, RLS-safe
   inserts, order-id enforcement, validation
 - `composeApp/src/commonMain/kotlin/com/uniquelo/app/state/Store.kt` — journal
   retention, persistence union, cancellation, `close()`, checkout sessions

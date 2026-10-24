@@ -89,7 +89,7 @@ endpoints. Template for snapshot-driven state (cache vs live):
 
 ## Rule 7: The web repo owns the backend (D-14)
 
-- **No mobile DDL.** Read `/Users/apple/MySpace/UniqueLo/supabase/schema.sql`
+- **No mobile DDL.** Read `/Users/apple/UniqueLo/backend/schema.sql`
   and its migrations before changing any DTO, query or embedding. Schema
   changes are web-first, hosted second, mobile third.
 - **Mirror the table inventory.** The nine-table lockdown array/`REVOKE` list is

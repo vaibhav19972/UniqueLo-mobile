@@ -191,13 +191,13 @@ in the repo as the completion artifact with a DO-NOT-DEPLOY-until-then banner.
 > variant (D-15, `20260104000000_lockdown_auth_admin.sql`). OA-2/OA-5 closed;
 > both D-13 residual risks (anonymous uploads, taxonomy defacement) are shut.
 
-## D-14 — The web repo owns the backend schema (Accepted, pre-Phase-3)
+## D-14 — The shared backend owns the schema (Accepted, pre-Phase-3; location updated 2026-10-24)
 
-**Decision.** `/Users/apple/MySpace/UniqueLo` is the single source of truth for
+**Decision.** `/Users/apple/UniqueLo/backend` is the single source of truth for
 the Supabase schema, migrations, seeds, RLS and admin write paths. The mobile
 repo consumes that backend through PostgREST and does **not** create tables,
-columns, policies or functions. Backend changes are web-first: edit and execute
-them in the web repo, apply them to the hosted project, then update the mobile
+columns, policies or functions. Backend changes are backend-first: edit and execute
+them in `backend/`, apply them to the hosted project, then update the mobile
 DTOs/mappers/docs in the same change set.
 
 **Contract.**

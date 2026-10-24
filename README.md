@@ -17,7 +17,7 @@ design system, dark theme, Satoshi typography, shared-element card→PDP,
 accessibility pass) are code-complete and verified.
 
 The backend is **shared with the web project** at
-`/Users/apple/MySpace/UniqueLo`: its `supabase/schema.sql`, migrations and seeds
+`/Users/apple/UniqueLo/backend`: its `schema.sql`, `migrations/` and seeds
 are the schema source of truth (D-14). The mobile app owns no DDL. The contract
 and current hosted drift are recorded in
 [`PROJECT_STATE.md` § Backend contract](docs/PROJECT_STATE.md#backend-contract-shared-with-the-web-project).
