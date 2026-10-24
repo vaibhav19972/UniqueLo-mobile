@@ -86,6 +86,13 @@ data class Variant(
             lowStock -> "Only $quantity left"
             else -> "In stock"
         }
+
+    /**
+     * Buyable only when the status and the reported quantity agree. A variant
+     * that says `in-stock` with `quantity = 0` is a data bug, not a sale — it
+     * stays visible as its status says but cannot be added to the bag.
+     */
+    val purchasable: Boolean get() = inStock && quantity != 0
 }
 
 @Serializable

@@ -15,7 +15,7 @@
 | 1-audit | Independent audit + fixes (`docs/phase-1-audit.md`) | ✅ `590cd3f` — 24 passed / 1 skipped, verified |
 | **2** | **Architecture: type-safe navigation, store split (Catalog/Bag/Checkout/Newsletter), DI graph, CI pipeline** | ✅ `6840046` + `37937a0` + `76f91af` ; docs+SQL `78a5d6b` ; crash fix `ef321c6` ; audit fixes `9c5dcc4` (`docs/phase-2-audit.md`) |
 | **3** | **Design elevation: Uniqlo-inspired shell, Satoshi typography, 3-state theme, shared-element card→PDP, 48dp targets + contrast pass** | ✅ design complete in this commit — `assembleDebug`, 47 tests, lint, iOS target all green; OA-6 remains the release gate, not a design dependency |
-| 4 | wishlist ✅ (D-18), order history/reviews/stock/payments still open | ⏳ |
+| 4 | wishlist + reviews + stock ✅ (D-18, D-19, D-20); **order history open — blocked on auth** | ⏳ |
 | 5 | Release engineering: signed builds, R8 map, icons/splash, deep links | ⏳ (iOS icon/launch asset done in D-17) |
 
 ## Open actions (any agent may pick up; mark status when done)
@@ -103,6 +103,7 @@ AppGraph (DI, hand-rolled — ADR-8)
        ├─ NewsletterStore — subscribe state
        ├─ ThemeStore — System/Light/Dark appearance, persisted atomically
        ├─ WishlistStore — saved product slugs, persisted journal
+       ├─ ReviewStore — review composer state
        └─ Router — type-safe Destination back stack (ADR-3)
 screens depend on narrow slices (catalog / bag / checkout), never on RootStore
 ```
@@ -165,6 +166,7 @@ open iosApp/iosApp.xcodeproj
 | Checkout form | ✗ | ✔ (per session) | ✗ | keyed by `checkoutSession`; fresh session per checkout (A8) |
 | Newsletter email field | ✔ | ✔ | ✗ | store-owned, low stakes |
 | Appearance preference | ✔ | ✔ | ✔ (`theme.txt`) | 3-state System/Light/Dark; read synchronously at `ThemeStore` construction, atomic temp→rename write |
+| Review draft (PDP composer) | ✗ | ✔ (store) | ✗ | author retained after submit; rating/title/comment cleared |
 
 If you ship a new piece of retained state, add a row here **first**, then implement,
 then assert both the "survives" **and** the "must-forget" side of the row in tests.
@@ -208,6 +210,9 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
 | 2026-10-23 | this commit (D-16) | theme persistence tests | 4 `ThemeStore` tests + 2 `OkioThemePersistence` round-trip/corrupt-file tests; temp file removed after atomic rename |
 | 2026-10-24 | working tree (D-18) | unit tests / assembleDebug / lintDebug / compileKotlinIosSimulatorArm64 (fresh run) | **59 tests, 58 passed / 1 skipped / 0 failures**; assembleDebug pass; lint 0 errors / 12 warnings (OA-3 unchanged); compileKotlinIosSimulatorArm64 pass |
 | 2026-10-24 | working tree (D-18) | Android runtime smoke, emulator-5554 (API 36) — live catalogue, tap-through, process death, dark mode | **PASS** — Discover rendered live hosted catalogue (1 piece, `arch-jaal-scarf`); grid heart tap flipped `content-desc` to "Remove … from saved", `checked=true` and wrote `files/wishlist.json` = `["arch-jaal-scarf"]`; Profile stat read `SAVED 1`; "Saved pieces" row (no SOON tag) opened the overlay showing "SAVED PIECES / 1 PIECE" with a filled red heart on the card; tapping the card body reached the PDP, whose own heart also read `checked=true`; unsaving on the PDP flipped to `checked=false` and **deleted** `wishlist.json`; system back returned to the overlay now showing "0 PIECES" + the empty state ("Nothing saved yet." + SHOP NEW ARRIVALS); `am force-stop` → cold relaunch still reported `SAVED 1` ⇒ process-death restore held; DARK theme re-render kept text/heart/CTA legible with no defects |
+| 2026-10-24 | working tree (D-19, D-20) | unit tests / assembleDebug / lintDebug / compileKotlinIosSimulatorArm64 (fresh run) | **72 tests, 71 passed / 1 skipped / 0 failures**; assembleDebug pass; lint 0 errors / 12 warnings (OA-3 unchanged); compileKotlinIosSimulatorArm64 pass |
+| 2026-10-24 | working tree (D-19, D-20) | Android runtime smoke, emulator-5554 (API 36) — review submit end-to-end against the **live** hosted DB, stock ceiling | **PASS** — PDP for `arch-jaal-scarf` showed `REVIEWS / None yet / WRITE THE FIRST REVIEW`; expanding the composer rendered 5 star radios (`1 stars`…`5 stars`, 48dp each) + `YOUR NAME`/`HEADLINE`/`YOUR REVIEW` + `POST REVIEW`. Validation asserted in order: empty POST → `Pick a star rating.`; after tapping `5 stars`, POST → `Add your name.`; all fields filled → `POST REVIEW` → `Thanks — your review is in.` + `WRITE ANOTHER`. Server-side confirmation via publishable-key REST: row `b76cc330…` (`arch-jaal-scarf`, author `QA-QAverify`, rating 5, title `Silk that behaves`, **`verified=true`** — the D-20 quirk, observed not assumed). The post-submit refresh then rendered `REVIEWS / 1 recent / Silk that behaves / — QA-QAverify` on the same PDP. Stock: `variants` has **no** row with `quantity <= 5` (all 10), so the `Only N left` line is unit-tested but **not device-exercised**; the ceiling was — bag line `Anime Hoodie / BLACK · M / UL-H9C9-BLACK-M`, `Increase quantity` tapped 10× → clamped at `10`, header `10 PIECES`, increment node `enabled="false"` |
+| 2026-10-24 | working tree (D-19, D-20) | runtime-smoke cleanup — probe row removed? | **OUTSTANDING** — the probe review (`author = QA-QAverify`) was **not** deleted: `anon` has no DELETE policy on `reviews`, so a REST DELETE returned `200` while RLS filtered the row (a re-read still returned it), and no service-role key exists in `web/.env` (only `VITE_SUPABASE_ANON_KEY`). Needs a dashboard delete of `reviews` where `author = 'QA-QAverify'` |
 
 > The earlier `8/8` lockdown row was a reduced eight-table fixture. The
 > authoritative full-schema result is the `9c5dcc4` row above: the real
@@ -282,8 +287,17 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
 - Local-only wishlist ("Saved pieces") is device-local and persisted as a JSON
   set of product slugs (`wishlist.json`). It does not interact with Supabase,
   network, or accounts (D-18); pieces remain saved until explicitly removed even
-  if dropped from the catalogue. Next in Phase 4 is authentication, which gates
-  persisted order history, cloud wishlist sync, and review submission.
+  if dropped from the catalogue.
+- Review submission lands unauthenticated (D-20) using Supabase's public insert
+  RLS policy, refreshing the catalogue upon submission.
+- Stock hardening ensures add-to-bag gates on `purchasable` (`inStock && quantity != 0`),
+  bag lines clamp increments to live stock ceilings with "Maximum available reached"
+  a11y feedback and low-stock warning banners.
+- Payments remain out of scope for the MVP (D-19): orders are saved as reservations,
+  and server-trusted pricing (D-6) and idempotency (D-7) remain deferred until payment
+  integration.
+- Authentication remains the primary remaining gate for cross-device sync, persisted
+  order history, and admin review moderation (OA-6).
 
 ## Landmines (things that look fine but break)
 

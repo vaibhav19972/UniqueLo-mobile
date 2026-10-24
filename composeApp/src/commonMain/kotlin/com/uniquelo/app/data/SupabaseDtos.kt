@@ -172,3 +172,12 @@ data class OrderItemInsert(
 data class NewsletterInsert(
     val email: String,
 )
+
+@Serializable
+data class ReviewInsert(
+    @SerialName("product_slug") val productSlug: String,
+    val author: String,
+    val rating: Int,
+    val title: String,
+    val comment: String,
+)

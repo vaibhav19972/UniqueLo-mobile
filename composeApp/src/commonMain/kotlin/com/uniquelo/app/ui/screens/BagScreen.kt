@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -81,6 +82,7 @@ fun BagScreen(
         items(items = bag.lines, key = { it.variant.sku }) { line ->
             BagLine(
                 line = line,
+                canIncrement = line.quantity < bag.maxQuantityFor(line.variant.sku),
                 onIncrement = { bag.increment(line.variant.sku) },
                 onDecrement = { bag.decrement(line.variant.sku) },
                 onRemove = { bag.remove(line.variant.sku) },
@@ -107,6 +109,7 @@ fun BagScreen(
 @Composable
 private fun BagLine(
     line: CartLine,
+    canIncrement: Boolean,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
     onRemove: () -> Unit,
@@ -156,6 +159,7 @@ private fun BagLine(
                 ) {
                     QuantityStepper(
                         quantity = line.quantity,
+                        canIncrement = canIncrement,
                         onIncrement = onIncrement,
                         onDecrement = onDecrement,
                     )
@@ -163,6 +167,14 @@ private fun BagLine(
                         text = formatCents(line.lineTotalCents),
                         style = MaterialTheme.typography.titleMedium,
                         color = Palette.Ink,
+                    )
+                }
+                if (!canIncrement && line.variant.lowStock) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Only ${line.variant.quantity} left",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Palette.Muted,
                     )
                 }
             }
@@ -184,6 +196,7 @@ private fun BagLine(
 @Composable
 private fun QuantityStepper(
     quantity: Int,
+    canIncrement: Boolean,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
 ) {
@@ -194,7 +207,7 @@ private fun QuantityStepper(
             .background(Palette.Paper),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        StepperButton(UiIcon.Minus, label = "Decrease quantity", onClick = onDecrement)
+        StepperButton(icon = UiIcon.Minus, label = "Decrease quantity", onClick = onDecrement)
         Text(
             text = quantity.toString(),
             style = MaterialTheme.typography.labelLarge,
@@ -202,20 +215,41 @@ private fun QuantityStepper(
             textAlign = TextAlign.Center,
             modifier = Modifier.width(32.dp),
         )
-        StepperButton(UiIcon.Plus, label = "Increase quantity", onClick = onIncrement)
+        StepperButton(
+            icon = UiIcon.Plus,
+            label = "Increase quantity",
+            enabled = canIncrement,
+            stateDesc = if (!canIncrement) "Maximum available reached" else null,
+            onClick = onIncrement,
+        )
     }
 }
 
 @Composable
-private fun StepperButton(icon: UiIcon, label: String, onClick: () -> Unit) {
+private fun StepperButton(
+    icon: UiIcon,
+    label: String,
+    enabled: Boolean = true,
+    stateDesc: String? = null,
+    onClick: () -> Unit,
+) {
     Box(
         modifier = Modifier
             .size(48.dp)
-            .semantics { contentDescription = label }
-            .clickable(onClick = onClick),
+            .semantics {
+                contentDescription = label
+                if (stateDesc != null) {
+                    stateDescription = stateDesc
+                }
+            }
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        UiIcon(icon, modifier = Modifier.size(14.dp), tint = Palette.Ink)
+        UiIcon(
+            icon,
+            modifier = Modifier.size(14.dp),
+            tint = if (enabled) Palette.Ink else Palette.Muted.copy(alpha = 0.5f),
+        )
     }
 }
 

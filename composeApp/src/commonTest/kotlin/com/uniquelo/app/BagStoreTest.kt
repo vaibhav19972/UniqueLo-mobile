@@ -1,5 +1,6 @@
 package com.uniquelo.app
 
+import com.uniquelo.app.data.CatalogSnapshot
 import com.uniquelo.app.data.SavedLine
 import com.uniquelo.app.state.BagStore
 import kotlin.test.Test
@@ -109,5 +110,60 @@ class BagStoreTest {
 
         assertTrue(bag.isEmpty)
         assertTrue(journal.saved.isEmpty())
+    }
+
+    @Test
+    fun soldOutByQuantityIsRefusedEvenWhenStatusSaysInStock() {
+        val bag = BagStore()
+        val zeroStock = variantFixture("kurta", skuSuffix = "s", size = "S", stock = 0)
+        assertEquals("in-stock", zeroStock.status)
+        assertEquals(0, zeroStock.quantity)
+        assertTrue(!zeroStock.purchasable)
+
+        bag.add(kurta, zeroStock)
+
+        assertTrue(bag.isEmpty)
+    }
+
+    @Test
+    fun incrementStopsAtTheVariantCeiling() {
+        val bag = BagStore()
+        val variant = variantFixture("kurta", skuSuffix = "s", size = "S", stock = 2)
+        bag.add(kurta, variant)
+        assertEquals(1, bag.bagCount)
+
+        bag.increment("kurta-s")
+        assertEquals(2, bag.bagCount)
+
+        bag.increment("kurta-s")
+        assertEquals(2, bag.bagCount)
+        assertEquals(2, bag.maxQuantityFor("kurta-s"))
+    }
+
+    @Test
+    fun maxQuantityForUnknownSkuIsZero() {
+        val bag = BagStore()
+        assertEquals(0, bag.maxQuantityFor("unknown-sku"))
+    }
+
+    @Test
+    fun unreportedStockFallsBackToTen() {
+        val journal = FakeBagJournal(listOf(SavedLine("kurta", "kurta-s", 15)))
+        val bag = BagStore(journal)
+        val variant = variantFixture("kurta", skuSuffix = "s", size = "S", stock = 0)
+        val product = kurta.copy(variants = listOf(variant))
+        bag.validateAgainst(
+            CatalogSnapshot(
+                products = listOf(product),
+                universes = emptyList(),
+                categories = emptyList(),
+                collections = emptyList(),
+                motifs = emptyList(),
+                reviews = emptyList(),
+            ),
+            fromLive = false,
+        )
+
+        assertEquals(10, bag.maxQuantityFor("kurta-s"))
     }
 }

@@ -24,6 +24,8 @@
 | D-16 | Accepted | **Phase 3 design system**: Uniqlo-inspired paper/ink shell + one red accent, self-hosted Satoshi, theme-aware `Palette` (Ink/Paper invert; fixed image/inverse tokens), persisted System/Light/Dark, Android-only shared-element card→PDP, 48dp/contrast/semantics contract | D-15; PROJECT_STATE § Phase 3 |
 | D-17 | Accepted | **iOS app shell added** (`iosApp/`, XcodeGen `project.yml` → generated `iosApp.xcodeproj`): full-bleed SwiftUI `@main` hosting `MainViewController()` (Compose owns safe-area/keyboard insets), pre-build phase runs `embedAndSignAppleFrameworkForXcode`, script sandboxing off, iOS 15 deployment target, bundle id `com.uniquelo.app` mirroring Android, theme-aware status bar/keyboard via `overrideUserInterfaceStyle`, red/white icon + `LaunchBackground` matching `Palette.Bone`. Shared UI stays 100% `commonMain`; no iOS-specific screens (platform actuals only) | supersedes D-10; D-16 |
 | D-18 | Accepted | **Local-only wishlist**: device-local slug set persisted to disk (`wishlist.json`), no auth, no backend | — |
+| D-19 | Accepted | **Payments are out of scope for MVP**: `place_order` reserves orders with no payment; Bag/Checkout disclaimer is blocking release copy; D-6/D-7 stay deferred | D-6, D-7 |
+| D-20 | Accepted | **Reviews submitted unauthenticated**: public `with check (true)` insert policy; server defaults `verified = true`; client-side validation only | OA-6 |
 
 ---
 
@@ -349,3 +351,63 @@ blocking Phase 4's incremental delivery.
 2. Saved product slugs are not pruned when a product disappears from the catalogue;
    a saved piece stays saved until explicitly removed by the user.
 3. Revisit cross-device wishlist synchronization when Supabase Auth lands in Phase 4.
+
+---
+
+## D-19 — Payments are out of scope for this MVP (Accepted, Phase 4)
+
+**Decision.** Payment processing is explicitly out of scope for the MVP.
+`place_order` reserves stock-less orders and takes **no payment**; the app's
+Bag and Checkout copy already states: "No payment is taken in this MVP. The
+order is saved as a reservation."
+
+**Why.**
+- Integrating a Payment Service Provider (PSP) now would require server-side
+  price/stock recomputation (D-6) and retry-safe order ids (D-7) **before** the
+  first rupee moves. Those two decisions stay `Deferred` with their existing
+  triggers unchanged.
+- Delivering reservations first allows verifying the full checkout lifecycle and
+  order book persistence without premature payment infrastructure.
+
+**Rejected alternatives.**
+1. *Client-side-only payment sheet*: Unverifiable amounts, no webhook confirmation,
+   trivial client-side tampering.
+2. *Directly collecting or storing card data*: Pulls the client into PCI-DSS
+   compliance scope.
+3. *Mock "paid" state*: Lies to the customer and contaminates the order book with
+   fictitious payments.
+
+**Consequences.**
+1. Phase 4 closes without a payment path.
+2. Phase 5 release engineering must not ship a store that implies payment.
+3. The Bag and Checkout reservation disclaimer ("No payment is taken in this MVP.
+   The order is saved as a reservation.") is release-blocking copy, not an
+   afterthought.
+4. D-6 and D-7 remain `Deferred` until real payments are scoped.
+
+---
+
+## D-20 — Reviews are submitted unauthenticated (Accepted, Phase 4)
+
+**Decision.** Review submission is implemented unauthenticated, consuming the
+existing Supabase RLS policy `"Allow public submit review" … for insert with check (true)`
+which survived the D-15 catalogue lockdown.
+
+**Contract & Known Quirks.**
+- The shared schema defaults `verified` to `true` on row insertion; customer-submitted
+  reviews are stored with `verified = true` and are therefore indistinguishable
+  from staff-seeded ones. This is a known quirk of the shared schema; mobile must
+  not diverge by sending `verified = false`.
+- DTO `ReviewInsert` submits only `product_slug`, `author`, `rating`, `title`, and
+  `comment`. Server defaults `id`, `verified`, and `created_at`.
+- Validation (`rating in 1..5`, non-blank author/title/comment) is enforced
+  client-side in `ReviewStore` and backstopped in `SupabaseRepository`.
+- There is currently no rate limit, duplicate email check, or automated spam control.
+  Unique/duplicate key constraint violations from the server are surfaced politely
+  to the user ("You have already reviewed this piece.").
+
+**Consequences.**
+1. Customer reviews appear immediately upon catalogue refresh (`refreshAfterReview`).
+2. Accepted as-is for the MVP storefront.
+3. Revisit review authorization, moderation, and verified-buyer checks when Supabase
+   Auth and an admin predicate (OA-6) land.

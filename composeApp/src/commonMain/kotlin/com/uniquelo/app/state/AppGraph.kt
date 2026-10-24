@@ -31,14 +31,22 @@ object AppGraph {
         bagStorage: BagPersistence? = defaultBagPersistence(),
         themeStorage: ThemePersistence? = defaultThemePersistence(),
         wishlistStorage: WishlistPersistence? = defaultWishlistPersistence(),
-    ): RootStore = RootStore(
-        catalog = CatalogStore(repository = repository, scope = scope, cache = cache),
-        bag = BagStore(bagStorage = bagStorage),
-        checkout = CheckoutStore(repository = repository, scope = scope),
-        newsletter = NewsletterStore(repository = repository, scope = scope),
-        router = Router(),
-        theme = ThemeStore(themeStorage),
-        wishlist = WishlistStore(wishlistStorage),
-        scope = scope,
-    )
+    ): RootStore {
+        val catalogStore = CatalogStore(repository = repository, scope = scope, cache = cache)
+        return RootStore(
+            catalog = catalogStore,
+            bag = BagStore(bagStorage = bagStorage),
+            checkout = CheckoutStore(repository = repository, scope = scope),
+            newsletter = NewsletterStore(repository = repository, scope = scope),
+            router = Router(),
+            theme = ThemeStore(themeStorage),
+            wishlist = WishlistStore(wishlistStorage),
+            review = ReviewStore(
+                repository = repository,
+                scope = scope,
+                onReviewSubmitted = { slug -> catalogStore.refreshAfterReview(slug) },
+            ),
+            scope = scope,
+        )
+    }
 }
