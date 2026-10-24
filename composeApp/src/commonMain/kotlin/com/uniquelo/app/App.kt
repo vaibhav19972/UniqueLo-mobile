@@ -162,6 +162,8 @@ private fun DestinationHost(
                         product = product,
                         bag = bag,
                         saved = product.slug in store.wishlist.slugs,
+                        review = store.review,
+                        onSubmitReview = { store.submitReview(product.slug) },
                         onToggleSaved = { store.toggleSaved(product.slug) },
                         onBack = { router.pop() },
                         onOpenBag = { router.selectTab(Destination.Bag) },

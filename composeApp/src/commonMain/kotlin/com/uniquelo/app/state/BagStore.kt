@@ -95,7 +95,7 @@ class BagStore(
     }
 
     fun add(product: Product, variant: Variant) {
-        if (!variant.inStock) return
+        if (!variant.purchasable) return
         val index = lines.indexOfFirst { it.variant.sku == variant.sku }
         if (index >= 0) {
             increment(variant.sku)
@@ -104,6 +104,10 @@ class BagStore(
         lines.add(CartLine(product = product, variant = variant, quantity = 1))
         persistBag()
     }
+
+    /** Highest quantity the customer may put in the bag for [sku]. */
+    fun maxQuantityFor(sku: String): Int =
+        lines.firstOrNull { it.variant.sku == sku }?.let { maxFor(it.variant) } ?: 0
 
     fun increment(sku: String) {
         val index = lines.indexOfFirst { it.variant.sku == sku }

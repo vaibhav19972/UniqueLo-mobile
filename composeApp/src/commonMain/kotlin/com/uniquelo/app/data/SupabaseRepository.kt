@@ -48,6 +48,14 @@ data class CheckoutForm(
     val country: String = "India",
 )
 
+data class ReviewDraft(
+    val productSlug: String,
+    val author: String,
+    val rating: Int,
+    val title: String,
+    val comment: String,
+)
+
 data class PlacedOrder(
     val id: String,
     val code: String,
@@ -71,6 +79,7 @@ interface UniqueLoRepository {
     suspend fun loadCatalog(): CatalogSnapshot
     suspend fun createOrder(form: CheckoutForm, lines: List<CartLine>): PlacedOrder
     suspend fun subscribe(email: String)
+    suspend fun submitReview(review: ReviewDraft)
 }
 
 /**
@@ -234,6 +243,29 @@ class SupabaseRepository(
         val clean = email.trim().lowercase()
         require(clean.isNotBlank()) { "Please add an email address." }
         post("newsletter_subscribers", NewsletterInsert(email = clean))
+    }
+
+    override suspend fun submitReview(review: ReviewDraft) {
+        val productSlug = review.productSlug.trim()
+        val author = review.author.trim()
+        val title = review.title.trim()
+        val comment = review.comment.trim()
+        require(productSlug.isNotBlank()) { "Product is required." }
+        require(review.rating in 1..5) { "Rating must be between 1 and 5." }
+        require(author.isNotBlank()) { "Please add a name." }
+        require(title.isNotBlank()) { "Please add a headline." }
+        require(comment.isNotBlank()) { "Please tell us what you think." }
+
+        post(
+            "reviews",
+            ReviewInsert(
+                productSlug = productSlug,
+                author = author,
+                rating = review.rating,
+                title = title,
+                comment = comment,
+            ),
+        )
     }
 
     private suspend inline fun <reified T> getRows(

@@ -4,6 +4,7 @@ import com.uniquelo.app.data.BagPersistence
 import com.uniquelo.app.data.CatalogSnapshot
 import com.uniquelo.app.data.CheckoutForm
 import com.uniquelo.app.data.PlacedOrder
+import com.uniquelo.app.data.ReviewDraft
 import com.uniquelo.app.data.SavedLine
 import com.uniquelo.app.data.SnapshotCache
 import com.uniquelo.app.data.SupabaseException
@@ -31,6 +32,9 @@ internal class FakeRepository(
 ) : UniqueLoRepository {
     var failCount = 0
     var orderFailures = 0
+    var reviewFailures = 0
+    var reviewException: Exception? = null
+    val submittedReviews = mutableListOf<ReviewDraft>()
 
     /** When set, [createOrder] suspends until the test releases it. */
     var orderGate: CompletableDeferred<Unit>? = null
@@ -53,6 +57,15 @@ internal class FakeRepository(
     }
 
     override suspend fun subscribe(email: String) = Unit
+
+    override suspend fun submitReview(review: ReviewDraft) {
+        reviewException?.let { throw it }
+        if (reviewFailures > 0) {
+            reviewFailures--
+            throw SupabaseException("row-level security blocked review insert")
+        }
+        submittedReviews.add(review)
+    }
 }
 
 internal class FakeCache(

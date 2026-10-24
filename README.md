@@ -43,7 +43,7 @@ Evidence: [`phase-1-audit.md`](docs/phase-1-audit.md),
 | Screen | Behaviour |
 |---|---|
 | **Discover** | Three universe cards with live theme colours, category chips, search across pieces/motifs/crafts, featured edit, two-column grid, newsletter signup |
-| **Product** | Photo pager, universe + category, rating/review count, INR price, colour and size selection with live stock, craft story (technique, region, artisan hours, thread), materials/care/fit, customer reviews |
+| **Product** | Photo pager, universe + category, rating/review count, INR price, colour and size selection with live stock, craft story (technique, region, artisan hours, thread), materials/care/fit, customer reviews and unauthenticated/unmoderated review submission (D-20) |
 | **Bag** | Variant-aware lines (colour + size + SKU), quantity stepper with stock cap, remove, INR subtotal/total — persisted across launches |
 | **Checkout** | Name/email/address form, order summary, writes a real `orders` row plus `order_items` atomically when the RPC is deployed, shows the generated order code |
 | **Profile** | Guest profile, order/saved/alerts placeholders, maker call-to-action |
@@ -455,7 +455,6 @@ evidence.
 - Wishlist is device-local and unsynced
 - Payments, tax calculation, shipping rates and inventory decrement
 - Server-side price recomputation and coupon validation
-- Review submission (reads are wired; the public insert policy exists)
 - Admin/CMS UI, real newsletter double opt-in
 - Image upload and relative-path rewriting for web-hosted seed images
 - iOS interactive pop gesture (`PlatformBackHandler.ios` is still a no-op; the

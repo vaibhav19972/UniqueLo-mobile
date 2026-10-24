@@ -22,6 +22,7 @@ class RootStore(
     val router: Router,
     val theme: ThemeStore,
     val wishlist: WishlistStore,
+    val review: ReviewStore,
     private val scope: CoroutineScope,
 ) {
     init {
@@ -91,6 +92,8 @@ class RootStore(
             onOrderCommitted = bag::onOrderCommitted,
         )
     }
+
+    fun submitReview(productSlug: String) = review.submit(productSlug)
 
     /**
      * Releases every store's jobs by cancelling the **shared** scope exactly

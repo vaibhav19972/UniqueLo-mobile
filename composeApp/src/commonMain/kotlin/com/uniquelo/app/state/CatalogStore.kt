@@ -112,6 +112,9 @@ class CatalogStore(
 
     fun retry() = load(force = true)
 
+    /** Targeted refresh after a review lands; keeps the current filters. */
+    fun refreshAfterReview(productSlug: String) { load(force = true) }
+
     private suspend fun revalidate() {
         try {
             val live = repository.loadCatalog()

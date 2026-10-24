@@ -24,6 +24,8 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -38,11 +40,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,6 +60,8 @@ import com.uniquelo.app.model.Review
 import com.uniquelo.app.model.Variant
 import com.uniquelo.app.model.formatCents
 import com.uniquelo.app.state.BagStore
+import com.uniquelo.app.state.ReviewState
+import com.uniquelo.app.state.ReviewStore
 import com.uniquelo.app.ui.components.ProductVisual
 import com.uniquelo.app.ui.components.UiIcon
 import com.uniquelo.app.ui.components.parseHexColor
@@ -64,6 +73,8 @@ fun ProductScreen(
     product: Product,
     bag: BagStore,
     saved: Boolean,
+    review: ReviewStore,
+    onSubmitReview: () -> Unit,
     onToggleSaved: () -> Unit,
     onBack: () -> Unit,
     onOpenBag: () -> Unit,
@@ -230,7 +241,11 @@ fun ProductScreen(
             ProductStory(product)
 
             Spacer(Modifier.height(22.dp))
-            ReviewsSection(product)
+            ReviewsSection(
+                product = product,
+                review = review,
+                onSubmitReview = onSubmitReview,
+            )
             }
         }
 
@@ -603,7 +618,11 @@ private fun ProductStory(product: Product) {
 }
 
 @Composable
-private fun ReviewsSection(product: Product) {
+private fun ReviewsSection(
+    product: Product,
+    review: ReviewStore,
+    onSubmitReview: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -629,8 +648,8 @@ private fun ReviewsSection(product: Product) {
             color = Palette.Muted,
         )
     } else {
-        product.reviews.forEachIndexed { index, review ->
-            ReviewCard(review)
+        product.reviews.forEachIndexed { index, item ->
+            ReviewCard(item)
             if (index != product.reviews.lastIndex) {
                 HorizontalDivider(
                     color = Palette.Line,
@@ -638,6 +657,213 @@ private fun ReviewsSection(product: Product) {
                 )
             }
         }
+    }
+
+    var composerExpanded by rememberSaveable(product.slug) { mutableStateOf(false) }
+
+    Spacer(Modifier.height(16.dp))
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .border(1.dp, Palette.Ink, RoundedCornerShape(2.dp))
+            .semantics { role = Role.Button }
+            .clickable { composerExpanded = !composerExpanded },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = if (product.reviews.isEmpty()) "WRITE THE FIRST REVIEW" else "WRITE A REVIEW",
+            style = MaterialTheme.typography.labelLarge,
+            color = Palette.Ink,
+        )
+    }
+
+    if (composerExpanded) {
+        Spacer(Modifier.height(16.dp))
+        if (review.state is ReviewState.Success) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Thanks — your review is in.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Palette.Ink,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                )
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    modifier = Modifier
+                        .height(48.dp)
+                        .defaultMinSize(minWidth = 140.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .border(1.dp, Palette.Ink, RoundedCornerShape(2.dp))
+                        .semantics { role = Role.Button }
+                        .clickable { review.reset() }
+                        .padding(horizontal = 16.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "WRITE ANOTHER",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Palette.Ink,
+                    )
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "RATING",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Palette.Muted,
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .selectableGroup(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    (1..5).forEach { star ->
+                        val selected = review.rating == star
+                        val filled = review.rating >= star
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .semantics {
+                                    contentDescription = "$star stars"
+                                }
+                                .selectable(
+                                    selected = selected,
+                                    role = Role.RadioButton,
+                                    onClick = { review.selectRating(star) },
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = if (filled) "★" else "☆",
+                                style = MaterialTheme.typography.titleLarge.copy(fontSize = 24.sp),
+                                color = if (filled) Palette.Rust else Palette.Muted,
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+                ReviewField(
+                    label = "Your Name",
+                    value = review.author,
+                    onValueChange = { review.author = it },
+                    placeholder = "e.g. Meera",
+                    enabled = review.state !is ReviewState.Submitting,
+                )
+
+                Spacer(Modifier.height(14.dp))
+                ReviewField(
+                    label = "Headline",
+                    value = review.title,
+                    onValueChange = { review.title = it },
+                    placeholder = "e.g. Beautiful fabric and drape",
+                    enabled = review.state !is ReviewState.Submitting,
+                )
+
+                Spacer(Modifier.height(14.dp))
+                ReviewField(
+                    label = "Your Review",
+                    value = review.comment,
+                    onValueChange = { review.comment = it },
+                    placeholder = "Tell us what you think of the fit, finish, and craft",
+                    singleLine = false,
+                    minLines = 4,
+                    imeAction = ImeAction.Default,
+                    enabled = review.state !is ReviewState.Submitting,
+                )
+
+                if (review.state is ReviewState.Error) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = (review.state as ReviewState.Error).message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Palette.Rust,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                    )
+                }
+
+                Spacer(Modifier.height(18.dp))
+                val isSubmitting = review.state is ReviewState.Submitting
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(if (isSubmitting) Palette.Sand else Palette.Rust)
+                        .semantics { role = Role.Button }
+                        .clickable(enabled = !isSubmitting) { onSubmitReview() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (isSubmitting) "POSTING…" else "POST REVIEW",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (isSubmitting) Palette.Muted else Palette.OnAccent,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+    imeAction: ImeAction = ImeAction.Next,
+    enabled: Boolean = true,
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = Palette.Muted,
+        )
+        Spacer(Modifier.height(6.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (minLines > 1) Modifier.defaultMinSize(minHeight = 48.dp).padding(vertical = 8.dp)
+                    else Modifier.height(48.dp)
+                ),
+            contentAlignment = if (minLines > 1) Alignment.TopStart else Alignment.CenterStart,
+        ) {
+            if (value.isEmpty()) {
+                Text(
+                    text = placeholder,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Palette.Muted,
+                )
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = label },
+                singleLine = singleLine,
+                minLines = minLines,
+                enabled = enabled,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = Palette.Ink),
+                cursorBrush = SolidColor(Palette.Rust),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Text,
+                    imeAction = imeAction,
+                ),
+            )
+        }
+        HorizontalDivider(color = Palette.ControlLine)
     }
 }
 
@@ -691,7 +917,7 @@ private fun PurchaseBar(
     onAdd: () -> Unit,
     onViewBag: () -> Unit,
 ) {
-    val canAdd = selectedVariant?.inStock == true
+    val canAdd = selectedVariant?.purchasable == true
     val buttonColor by animateColorAsState(
         when {
             added -> Palette.Ink
@@ -742,7 +968,7 @@ private fun PurchaseBar(
                 text = when {
                     added -> "VIEW BAG"
                     selectedVariant == null -> "SELECT A SIZE"
-                    !selectedVariant.inStock -> "SOLD OUT"
+                    !selectedVariant.purchasable -> "SOLD OUT"
                     else -> "ADD TO BAG"
                 },
                 style = MaterialTheme.typography.labelLarge,
