@@ -23,6 +23,7 @@
 | D-15 | Accepted | **Authenticated-admin catalogue lockdown** (closes D-5/D-13/OA-2/OA-5): with the Admin Studio on Supabase Auth, catalogue writes are `authenticated`-only — nine-table policy drop + anon revoke + grants/policies + storage upload moved public → `authenticated`; anon keeps read-only storefront access. Opens OA-6 (`authenticated` is not yet an admin gate) | OA-6; OA-2/OA-5 closed |
 | D-16 | Accepted | **Phase 3 design system**: Uniqlo-inspired paper/ink shell + one red accent, self-hosted Satoshi, theme-aware `Palette` (Ink/Paper invert; fixed image/inverse tokens), persisted System/Light/Dark, Android-only shared-element card→PDP, 48dp/contrast/semantics contract | D-15; PROJECT_STATE § Phase 3 |
 | D-17 | Accepted | **iOS app shell added** (`iosApp/`, XcodeGen `project.yml` → generated `iosApp.xcodeproj`): full-bleed SwiftUI `@main` hosting `MainViewController()` (Compose owns safe-area/keyboard insets), pre-build phase runs `embedAndSignAppleFrameworkForXcode`, script sandboxing off, iOS 15 deployment target, bundle id `com.uniquelo.app` mirroring Android, theme-aware status bar/keyboard via `overrideUserInterfaceStyle`, red/white icon + `LaunchBackground` matching `Palette.Bone`. Shared UI stays 100% `commonMain`; no iOS-specific screens (platform actuals only) | supersedes D-10; D-16 |
+| D-18 | Accepted | **Local-only wishlist**: device-local slug set persisted to disk (`wishlist.json`), no auth, no backend | — |
 
 ---
 
@@ -319,3 +320,32 @@ text is full `Muted`, not a low-alpha tint. Control borders use `ControlLine`
    routine dependency bump.
 4. The Phase 2 screenshots in `README.md` predate this direction; regenerate
    them when the release build is signed (Phase 5).
+
+---
+
+## D-18 — Local-only wishlist (Accepted, Phase 4)
+
+**Decision.** Add a device-local wishlist ("Saved pieces") persisted as a JSON
+set of product slugs (`wishlist.json`) via okio `atomicMove`, loaded synchronously
+at `WishlistStore` construction. No authentication, no network, no Supabase table,
+and no backend/DTO/schema change. Saved slugs are rendered as a heart toggle on
+product cards and the PDP, and displayed in a new Saved overlay screen accessible
+from Profile.
+
+**Why.** User authentication is the gate for cross-device sync and persisted order
+history in Phase 4. Decoupling the wishlist from authentication allows users to
+save pieces immediately on device without waiting for the full auth flow or
+blocking Phase 4's incremental delivery.
+
+**Rejected alternatives.**
+1. *Supabase table now*: Requires user accounts, auth tokens, RLS policies, and
+   adding a 14th table to the database. This would violate D-14 ("mobile owns no
+   DDL; backend is shared with web") and block local wishlist usage on auth.
+2. *In-memory only*: Loses saved pieces on process death or app restart, violating
+   the project's offline-first durability contract (CONVENTIONS Rule 4 & 5).
+
+**Consequences.**
+1. The wishlist is per-device and unsynced across devices or web.
+2. Saved product slugs are not pruned when a product disappears from the catalogue;
+   a saved piece stays saved until explicitly removed by the user.
+3. Revisit cross-device wishlist synchronization when Supabase Auth lands in Phase 4.

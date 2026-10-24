@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,6 +42,8 @@ import com.uniquelo.app.ui.theme.Palette
 @Composable
 fun ProfileScreen(
     theme: ThemeStore,
+    savedCount: Int,
+    onOpenSaved: () -> Unit,
     onBrowse: () -> Unit,
 ) {
     LazyColumn(
@@ -101,7 +104,7 @@ fun ProfileScreen(
 
             Row(modifier = Modifier.fillMaxWidth()) {
                 Stat(value = "0", label = "Orders", modifier = Modifier.weight(1f))
-                Stat(value = "0", label = "Saved", modifier = Modifier.weight(1f))
+                Stat(value = savedCount.toString(), label = "Saved", modifier = Modifier.weight(1f))
                 Stat(value = "0", label = "Alerts", modifier = Modifier.weight(1f))
             }
 
@@ -149,7 +152,7 @@ fun ProfileScreen(
 
         item {
             ProfileRow("Orders")
-            ProfileRow("Saved pieces")
+            ProfileRow("Saved pieces", onClick = onOpenSaved)
             ProfileRow("Addresses")
             ProfileRow("Payment methods")
             ProfileRow("Preferences")
@@ -267,12 +270,28 @@ private fun Stat(value: String, label: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ProfileRow(label: String, last: Boolean = false) {
+private fun ProfileRow(
+    label: String,
+    last: Boolean = false,
+    onClick: (() -> Unit)? = null,
+) {
+    val rowModifier = if (onClick != null) {
+        Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 48.dp)
+            .clip(MaterialTheme.shapes.small)
+            .semantics { role = Role.Button }
+            .clickable(onClick = onClick)
+            .padding(vertical = 17.dp)
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 48.dp)
+            .padding(vertical = 17.dp)
+    }
     Column {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 17.dp),
+            modifier = rowModifier,
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -282,12 +301,14 @@ private fun ProfileRow(label: String, last: Boolean = false) {
                 color = Palette.Ink,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "SOON",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Palette.Muted,
-                )
-                Spacer(Modifier.width(8.dp))
+                if (onClick == null) {
+                    Text(
+                        text = "SOON",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Palette.Muted,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
                 UiIcon(UiIcon.ChevronRight, modifier = Modifier.size(14.dp), tint = Palette.Muted)
             }
         }

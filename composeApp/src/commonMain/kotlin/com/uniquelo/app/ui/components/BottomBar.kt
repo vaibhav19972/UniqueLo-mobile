@@ -65,6 +65,7 @@ private fun iconFor(tab: Destination): UiIcon = when (tab) {
     is Destination.Profile -> UiIcon.Person
     is Destination.Product,
     is Destination.Checkout,
+    is Destination.Saved,
     -> error("Tab bar icon requested for overlay destination $tab")
 }
 

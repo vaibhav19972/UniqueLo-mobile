@@ -21,6 +21,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -41,6 +42,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,6 +63,8 @@ import com.uniquelo.app.ui.theme.Palette
 fun ProductScreen(
     product: Product,
     bag: BagStore,
+    saved: Boolean,
+    onToggleSaved: () -> Unit,
     onBack: () -> Unit,
     onOpenBag: () -> Unit,
 ) {
@@ -80,7 +84,12 @@ fun ProductScreen(
                 .weight(1f)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Gallery(product = product, onBack = onBack)
+            Gallery(
+                product = product,
+                saved = saved,
+                onToggleSaved = onToggleSaved,
+                onBack = onBack,
+            )
 
             Column(
                 modifier = Modifier
@@ -243,6 +252,8 @@ fun ProductScreen(
 @Composable
 private fun Gallery(
     product: Product,
+    saved: Boolean,
+    onToggleSaved: () -> Unit,
     onBack: () -> Unit,
 ) {
     val images = product.remoteImages
@@ -314,18 +325,46 @@ private fun Gallery(
             UiIcon(UiIcon.ArrowLeft, modifier = Modifier.size(20.dp), tint = Palette.Ink)
         }
 
-        product.editionLabel?.let { edition ->
-            Text(
-                text = edition.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = Palette.OnAccent,
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
+            Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(Palette.Rust)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            )
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(Palette.ImageScrim.copy(alpha = 0.72f))
+                    .toggleable(
+                        value = saved,
+                        role = Role.Checkbox,
+                        onValueChange = { onToggleSaved() },
+                    )
+                    .semantics {
+                        contentDescription = if (saved) "Remove ${product.name} from saved" else "Save ${product.name}"
+                        stateDescription = if (saved) "Saved" else "Not saved"
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                UiIcon(
+                    icon = if (saved) UiIcon.HeartFilled else UiIcon.Heart,
+                    modifier = Modifier.size(22.dp),
+                    tint = if (saved) Palette.Rust else Palette.OnImage,
+                )
+            }
+            product.editionLabel?.let { edition ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = edition.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Palette.OnAccent,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Palette.Rust)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
         }
     }
 }

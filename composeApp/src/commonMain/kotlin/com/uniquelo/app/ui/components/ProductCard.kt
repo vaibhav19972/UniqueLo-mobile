@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -20,8 +22,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.uniquelo.app.model.Product
@@ -32,6 +36,8 @@ import com.uniquelo.app.ui.theme.Palette
 fun ProductCard(
     product: Product,
     onClick: () -> Unit,
+    saved: Boolean,
+    onToggleSaved: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -67,6 +73,29 @@ fun ProductCard(
                         .clip(RoundedCornerShape(0.dp))
                         .background(Palette.ImageScrim.copy(alpha = 0.88f))
                         .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+                    .size(48.dp)
+                    .background(Palette.ImageScrim.copy(alpha = 0.72f))
+                    .toggleable(
+                        value = saved,
+                        role = Role.Checkbox,
+                        onValueChange = { onToggleSaved() },
+                    )
+                    .semantics {
+                        contentDescription = if (saved) "Remove ${product.name} from saved" else "Save ${product.name}"
+                        stateDescription = if (saved) "Saved" else "Not saved"
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                UiIcon(
+                    icon = if (saved) UiIcon.HeartFilled else UiIcon.Heart,
+                    modifier = Modifier.size(22.dp),
+                    tint = if (saved) Palette.Rust else Palette.OnImage,
                 )
             }
         }

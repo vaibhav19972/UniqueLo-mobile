@@ -9,6 +9,7 @@ import com.uniquelo.app.data.SnapshotCache
 import com.uniquelo.app.data.SupabaseException
 import com.uniquelo.app.data.ThemePersistence
 import com.uniquelo.app.data.UniqueLoRepository
+import com.uniquelo.app.data.WishlistPersistence
 import com.uniquelo.app.model.CartLine
 import com.uniquelo.app.model.Category
 import com.uniquelo.app.model.Product
@@ -76,6 +77,19 @@ internal class FakeBagJournal(
         saved.addAll(lines)
     }
     override fun clear() = saved.clear()
+}
+
+internal class FakeWishlistPersistence(
+    initial: Set<String> = emptySet(),
+) : WishlistPersistence {
+    val saved = initial.toMutableSet()
+    var saves = 0
+    override fun load(): Set<String> = saved.toSet()
+    override fun save(slugs: Set<String>) {
+        saved.clear()
+        saved.addAll(slugs)
+        saves++
+    }
 }
 
 internal class FakeThemePersistence(

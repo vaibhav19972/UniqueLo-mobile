@@ -25,6 +25,8 @@ enum class UiIcon {
     Plus,
     Minus,
     Close,
+    Heart,
+    HeartFilled,
 }
 
 /**
@@ -151,6 +153,30 @@ fun UiIcon(
             UiIcon.Close -> {
                 line(0.24f, 0.24f, 0.76f, 0.76f)
                 line(0.76f, 0.24f, 0.24f, 0.76f)
+            }
+
+            UiIcon.Heart -> {
+                val path = Path().apply {
+                    moveTo(w * 0.5f, h * 0.32f)
+                    cubicTo(w * 0.42f, h * 0.16f, w * 0.18f, h * 0.16f, w * 0.18f, h * 0.38f)
+                    cubicTo(w * 0.18f, h * 0.56f, w * 0.35f, h * 0.70f, w * 0.5f, h * 0.82f)
+                    cubicTo(w * 0.65f, h * 0.70f, w * 0.82f, h * 0.56f, w * 0.82f, h * 0.38f)
+                    cubicTo(w * 0.82f, h * 0.16f, w * 0.58f, h * 0.16f, w * 0.5f, h * 0.32f)
+                    close()
+                }
+                drawPath(path, tint, style = stroke)
+            }
+
+            UiIcon.HeartFilled -> {
+                val path = Path().apply {
+                    moveTo(w * 0.5f, h * 0.32f)
+                    cubicTo(w * 0.42f, h * 0.16f, w * 0.18f, h * 0.16f, w * 0.18f, h * 0.38f)
+                    cubicTo(w * 0.18f, h * 0.56f, w * 0.35f, h * 0.70f, w * 0.5f, h * 0.82f)
+                    cubicTo(w * 0.65f, h * 0.70f, w * 0.82f, h * 0.56f, w * 0.82f, h * 0.38f)
+                    cubicTo(w * 0.82f, h * 0.16f, w * 0.58f, h * 0.16f, w * 0.5f, h * 0.32f)
+                    close()
+                }
+                drawPath(path, tint)
             }
         }
     }
