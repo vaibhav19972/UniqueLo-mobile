@@ -40,6 +40,7 @@ import com.uniquelo.app.ui.screens.CheckoutScreen
 import com.uniquelo.app.ui.screens.DiscoverScreen
 import com.uniquelo.app.ui.screens.ProductScreen
 import com.uniquelo.app.ui.screens.ProfileScreen
+import com.uniquelo.app.ui.screens.SavedScreen
 import com.uniquelo.app.ui.theme.Palette
 import com.uniquelo.app.ui.theme.UniqueLoTheme
 
@@ -139,6 +140,17 @@ private fun DestinationHost(
             )
         }
 
+        Destination.Saved -> saveableStateHolder.SaveableStateProvider("saved") {
+            val savedProducts = catalog.products.filter { it.slug in store.wishlist.slugs }
+            SavedScreen(
+                savedProducts = savedProducts,
+                onBack = { router.pop() },
+                onOpenProduct = { store.openProduct(it) },
+                onBrowse = { store.selectTab(Destination.Discover) },
+                onToggleSaved = { store.toggleSaved(it.slug) },
+            )
+        }
+
         is Destination.Product -> {
             // Shell resolves the slug against the live catalogue; a refresh
             // that removes the product closes the PDP (same net effect as the
@@ -149,6 +161,8 @@ private fun DestinationHost(
                     ProductScreen(
                         product = product,
                         bag = bag,
+                        saved = product.slug in store.wishlist.slugs,
+                        onToggleSaved = { store.toggleSaved(product.slug) },
                         onBack = { router.pop() },
                         onOpenBag = { router.selectTab(Destination.Bag) },
                     )
@@ -169,6 +183,8 @@ private fun DestinationHost(
                             catalog = catalog,
                             newsletter = store.newsletter,
                             bagCount = bag.bagCount,
+                            savedSlugs = store.wishlist.slugs,
+                            onToggleSaved = { store.toggleSaved(it.slug) },
                             onOpenBag = { router.selectTab(Destination.Bag) },
                             onOpenProduct = { store.openProduct(it) },
                             listState = discoverListState,
@@ -182,6 +198,8 @@ private fun DestinationHost(
 
                         Destination.Profile -> ProfileScreen(
                             theme = store.theme,
+                            savedCount = store.savedCount,
+                            onOpenSaved = { store.openSaved() },
                             onBrowse = { store.selectTab(Destination.Discover) },
                         )
                     }

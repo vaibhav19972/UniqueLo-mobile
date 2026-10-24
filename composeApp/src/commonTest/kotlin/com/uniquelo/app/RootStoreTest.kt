@@ -295,6 +295,32 @@ class RootStoreTest {
         assertEquals(1, root.bag.lines.size)
     }
 
+    @Test
+    fun openSavedPushesTheSavedOverlay() {
+        val wishlistStorage = FakeWishlistPersistence(setOf("kurta"))
+        val root = rootForTest(wishlistStorage = wishlistStorage)
+
+        root.selectTab(Destination.Profile)
+        assertEquals(Destination.Profile, root.router.current)
+        assertEquals(1, root.savedCount)
+
+        root.openSaved()
+        assertEquals(Destination.Saved, root.router.current)
+    }
+
+    @Test
+    fun backClosesTheSavedOverlay() {
+        val wishlistStorage = FakeWishlistPersistence(setOf("kurta"))
+        val root = rootForTest(wishlistStorage = wishlistStorage)
+
+        root.selectTab(Destination.Profile)
+        root.openSaved()
+        assertEquals(Destination.Saved, root.router.current)
+
+        root.onBack()
+        assertEquals(Destination.Profile, root.router.current)
+    }
+
     private fun checkoutForm() = CheckoutForm(
         name = "QA",
         email = "qa@uniquelo.app",

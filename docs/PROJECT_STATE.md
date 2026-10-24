@@ -15,7 +15,7 @@
 | 1-audit | Independent audit + fixes (`docs/phase-1-audit.md`) | ✅ `590cd3f` — 24 passed / 1 skipped, verified |
 | **2** | **Architecture: type-safe navigation, store split (Catalog/Bag/Checkout/Newsletter), DI graph, CI pipeline** | ✅ `6840046` + `37937a0` + `76f91af` ; docs+SQL `78a5d6b` ; crash fix `ef321c6` ; audit fixes `9c5dcc4` (`docs/phase-2-audit.md`) |
 | **3** | **Design elevation: Uniqlo-inspired shell, Satoshi typography, 3-state theme, shared-element card→PDP, 48dp targets + contrast pass** | ✅ design complete in this commit — `assembleDebug`, 47 tests, lint, iOS target all green; OA-6 remains the release gate, not a design dependency |
-| 4 | Commerce: wishlist, order history (auth), review submission, stock validation, payments decision | ⏳ |
+| 4 | wishlist ✅ (D-18), order history/reviews/stock/payments still open | ⏳ |
 | 5 | Release engineering: signed builds, R8 map, icons/splash, deep links | ⏳ (iOS icon/launch asset done in D-17) |
 
 ## Open actions (any agent may pick up; mark status when done)
@@ -102,6 +102,7 @@ AppGraph (DI, hand-rolled — ADR-8)
        ├─ CheckoutStore — checkout sessions, order submission
        ├─ NewsletterStore — subscribe state
        ├─ ThemeStore — System/Light/Dark appearance, persisted atomically
+       ├─ WishlistStore — saved product slugs, persisted journal
        └─ Router — type-safe Destination back stack (ADR-3)
 screens depend on narrow slices (catalog / bag / checkout), never on RootStore
 ```
@@ -155,6 +156,7 @@ open iosApp/iosApp.xcodeproj
 
 | State | Tab switch | Rotation | Process death | Notes |
 |---|---|---|---|---|
+| Saved pieces | ✔ (store) | ✔ (store) | ✔ (`wishlist.json`) | slug set only; not pruned when a product leaves the catalogue |
 | Catalogue content | ✔ (store) | ✔ (store) | ✔ (disk cache, offline-first) | stale-while-revalidate; `syncError` banner while serving cache |
 | Bag lines | ✔ | ✔ | ✔ (bag.json journal → rehydrated against catalogue, stock-clamped) | journal survives unmatched-only-cached entries (audit A3/A4) |
 | PDP colour/size selection | ✗ | ✔ (rememberSaveable) | ✗ | keyed by product slug |
@@ -204,6 +206,8 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
 | 2026-10-24 | working tree (D-17) | Android runtime smoke, emulator-5554 (API 36) post-install | **PASS** — launched, single PID `com.uniquelo.app`, no `FATAL EXCEPTION`; Discover renders live hosted catalogue; tapped product → PDP `Embroidered Linen Halter` (₹1,490, BATCH 01/50, 6 carousel dots); `cmd uimode night yes` flips the same process to the dark UI with light status-bar icons |
 | 2026-10-24 | working tree (D-17) | shell generation + scheme audit | `xcodegen --spec iosApp/project.yml` regenerates one `UniqueLo` app target; the shared scheme has no environment variables (the earlier malformed `OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED` value is gone); `CODE_SIGN_IDENTITY = Apple Development`; no `DEVELOPMENT_TEAM`; `iosApp.xcodeproj` remains gitignored; `Info.plist` and asset catalogs validate during build |
 | 2026-10-23 | this commit (D-16) | theme persistence tests | 4 `ThemeStore` tests + 2 `OkioThemePersistence` round-trip/corrupt-file tests; temp file removed after atomic rename |
+| 2026-10-24 | working tree (D-18) | unit tests / assembleDebug / lintDebug / compileKotlinIosSimulatorArm64 (fresh run) | **59 tests, 58 passed / 1 skipped / 0 failures**; assembleDebug pass; lint 0 errors / 12 warnings (OA-3 unchanged); compileKotlinIosSimulatorArm64 pass |
+| 2026-10-24 | working tree (D-18) | Android runtime smoke, emulator-5554 (API 36) — live catalogue, tap-through, process death, dark mode | **PASS** — Discover rendered live hosted catalogue (1 piece, `arch-jaal-scarf`); grid heart tap flipped `content-desc` to "Remove … from saved", `checked=true` and wrote `files/wishlist.json` = `["arch-jaal-scarf"]`; Profile stat read `SAVED 1`; "Saved pieces" row (no SOON tag) opened the overlay showing "SAVED PIECES / 1 PIECE" with a filled red heart on the card; tapping the card body reached the PDP, whose own heart also read `checked=true`; unsaving on the PDP flipped to `checked=false` and **deleted** `wishlist.json`; system back returned to the overlay now showing "0 PIECES" + the empty state ("Nothing saved yet." + SHOP NEW ARRIVALS); `am force-stop` → cold relaunch still reported `SAVED 1` ⇒ process-death restore held; DARK theme re-render kept text/heart/CTA legible with no defects |
 
 > The earlier `8/8` lockdown row was a reduced eight-table fixture. The
 > authoritative full-schema result is the `9c5dcc4` row above: the real
@@ -272,6 +276,14 @@ then assert both the "survives" **and** the "must-forget" side of the row in tes
 - Theme persistence is best-effort: a missing/read-only app directory disables
   persistence, and a corrupt `theme.txt` falls back to `System` rather than
   failing startup.
+
+## Phase 4 notes (commerce, next agents read these)
+
+- Local-only wishlist ("Saved pieces") is device-local and persisted as a JSON
+  set of product slugs (`wishlist.json`). It does not interact with Supabase,
+  network, or accounts (D-18); pieces remain saved until explicitly removed even
+  if dropped from the catalogue. Next in Phase 4 is authentication, which gates
+  persisted order history, cloud wishlist sync, and review submission.
 
 ## Landmines (things that look fine but break)
 

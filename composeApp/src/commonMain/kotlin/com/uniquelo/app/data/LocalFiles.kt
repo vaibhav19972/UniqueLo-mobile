@@ -35,3 +35,8 @@ internal fun defaultBagPersistence(): BagPersistence? = runCatching {
 internal fun defaultThemePersistence(): ThemePersistence? = runCatching {
     appFilesPath()?.let(::OkioThemePersistence)
 }.getOrNull()
+
+/** Disk-backed wishlist journal when the platform allows it, else null. */
+internal fun defaultWishlistPersistence(): WishlistPersistence? = runCatching {
+    appFilesPath()?.let(::OkioWishlistPersistence)
+}.getOrNull()

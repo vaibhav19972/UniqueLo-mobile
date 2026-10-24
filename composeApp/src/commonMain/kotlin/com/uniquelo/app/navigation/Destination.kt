@@ -31,6 +31,11 @@ sealed interface Destination {
         override val label: String? get() = null
     }
 
+    /** Saved pieces overlay. Content is resolved by the shell from WishlistStore. */
+    data object Saved : Destination {
+        override val label: String? get() = null
+    }
+
     /** Checkout overlay. Session numbering lives in CheckoutStore (audit A8). */
     data object Checkout : Destination {
         override val label: String? get() = null

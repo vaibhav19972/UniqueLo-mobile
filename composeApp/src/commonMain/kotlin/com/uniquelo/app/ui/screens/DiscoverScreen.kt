@@ -67,6 +67,8 @@ fun DiscoverScreen(
     catalog: CatalogStore,
     newsletter: NewsletterStore,
     bagCount: Int,
+    savedSlugs: Set<String>,
+    onToggleSaved: (Product) -> Unit,
     onOpenBag: () -> Unit,
     onOpenProduct: (Product) -> Unit,
     listState: LazyListState = rememberLazyListState(),
@@ -212,6 +214,8 @@ fun DiscoverScreen(
                                 ProductCard(
                                     product = product,
                                     onClick = { onOpenProduct(product) },
+                                    saved = product.slug in savedSlugs,
+                                    onToggleSaved = { onToggleSaved(product) },
                                     modifier = Modifier.weight(1f),
                                 )
                             }

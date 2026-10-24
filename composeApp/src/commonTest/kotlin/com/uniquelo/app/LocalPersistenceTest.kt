@@ -4,6 +4,7 @@ import com.uniquelo.app.data.CatalogSnapshot
 import com.uniquelo.app.data.OkioBagPersistence
 import com.uniquelo.app.data.OkioSnapshotCache
 import com.uniquelo.app.data.OkioThemePersistence
+import com.uniquelo.app.data.OkioWishlistPersistence
 import com.uniquelo.app.data.SavedLine
 import com.uniquelo.app.model.Category
 import com.uniquelo.app.model.Collection
@@ -130,6 +131,40 @@ class LocalPersistenceTest {
         }
 
         assertNull(cache.load())
+    }
+
+    @Test
+    fun wishlistRoundTripsThroughDisk() {
+        val dir = "/app/private".toPath()
+        val wishlist = OkioWishlistPersistence(dir, fileSystem)
+        val slugs = setOf("kurta", "hoodie")
+
+        assertTrue(wishlist.load().isEmpty())
+        wishlist.save(slugs)
+        assertEquals(slugs, wishlist.load())
+    }
+
+    @Test
+    fun corruptWishlistFileLoadsAsEmpty() {
+        val dir = "/app/private".toPath()
+        val wishlist = OkioWishlistPersistence(dir, fileSystem)
+        wishlist.save(setOf("kurta"))
+        val file = "/app/private/wishlist.json".toPath()
+        fileSystem.sink(file).buffer().use { it.writeUtf8("{not json") }
+
+        assertTrue(wishlist.load().isEmpty())
+    }
+
+    @Test
+    fun emptyWishlistDeletesTheFile() {
+        val dir = "/app/private".toPath()
+        val wishlist = OkioWishlistPersistence(dir, fileSystem)
+
+        wishlist.save(setOf("kurta"))
+        assertTrue(fileSystem.exists("/app/private/wishlist.json".toPath()))
+
+        wishlist.save(emptySet())
+        assertTrue(!fileSystem.exists("/app/private/wishlist.json".toPath()))
     }
 
     // ─────────────────────────────────────────────────────────────────────────

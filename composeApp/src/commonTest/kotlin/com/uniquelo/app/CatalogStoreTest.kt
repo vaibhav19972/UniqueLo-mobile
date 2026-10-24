@@ -2,6 +2,7 @@ package com.uniquelo.app
 
 import com.uniquelo.app.data.SnapshotCache
 import com.uniquelo.app.data.ThemePersistence
+import com.uniquelo.app.data.WishlistPersistence
 import com.uniquelo.app.state.AppGraph
 import com.uniquelo.app.state.CatalogState
 import com.uniquelo.app.state.CatalogStore
@@ -85,10 +86,12 @@ internal fun rootForTest(
     repository: FakeRepository = FakeRepository(snapshot()),
     bagStorage: FakeBagJournal? = null,
     themeStorage: ThemePersistence? = null,
+    wishlistStorage: WishlistPersistence? = null,
 ): RootStore = AppGraph.createStore(
     scope = unconfinedScope,
     repository = repository,
     cache = cache,
     bagStorage = bagStorage,
     themeStorage = themeStorage,
+    wishlistStorage = wishlistStorage,
 )

@@ -109,4 +109,26 @@ class RouterTest {
             router.selectTab(Destination.Product("kurta"))
         }
     }
+
+    @Test
+    fun savedOverlayPushesAndPops() {
+        val router = Router()
+        router.selectTab(Destination.Profile)
+        router.push(Destination.Saved)
+
+        assertEquals(Destination.Saved, router.current)
+        assertTrue(router.canPop)
+
+        router.pop()
+        assertEquals(Destination.Profile, router.current)
+    }
+
+    @Test
+    fun savedIsNotATabRoot() {
+        val router = Router()
+
+        assertFailsWith<IllegalArgumentException> {
+            router.selectTab(Destination.Saved)
+        }
+    }
 }

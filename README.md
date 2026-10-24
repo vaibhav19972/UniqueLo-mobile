@@ -452,6 +452,7 @@ evidence.
 ## Deliberately out of scope
 
 - Authentication, accounts and persisted order history
+- Wishlist is device-local and unsynced
 - Payments, tax calculation, shipping rates and inventory decrement
 - Server-side price recomputation and coupon validation
 - Review submission (reads are wired; the public insert policy exists)

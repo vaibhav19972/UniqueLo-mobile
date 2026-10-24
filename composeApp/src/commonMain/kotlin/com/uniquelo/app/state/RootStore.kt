@@ -21,6 +21,7 @@ class RootStore(
     val newsletter: NewsletterStore,
     val router: Router,
     val theme: ThemeStore,
+    val wishlist: WishlistStore,
     private val scope: CoroutineScope,
 ) {
     init {
@@ -35,6 +36,10 @@ class RootStore(
     val bagCount: Int get() = bag.bagCount
     val subtotalCents: Int get() = bag.subtotalCents
     val bagIsEmpty: Boolean get() = bag.isEmpty
+
+    val savedCount: Int get() = wishlist.count
+    fun openSaved() { if (router.current != Destination.Saved) router.push(Destination.Saved) }
+    fun toggleSaved(slug: String) = wishlist.toggle(slug)
 
     // Navigation ----------------------------------------------------------------
 
