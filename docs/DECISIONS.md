@@ -3,6 +3,11 @@
 > Append-only. One row per decision, one section per detail. Never edit an
 > accepted decision silently — add a superseding entry and link both ways.
 > Statuses: **Accepted** · **Deferred** (with trigger) · **Superseded**.
+>
+> **Path note (2026-10-25):** this log predates the move of the shared schema
+> into `backend/`. References below to `supabase/migrations/<file>.sql` now
+> resolve to `../backend/migrations/<file>.sql` (the single chain both clients
+> share). The filenames are unchanged.
 
 | ID | Status | Decision | Related |
 |---|---|---|---|
@@ -245,7 +250,15 @@ authenticated write policies, and move storage from the public upload policy
 to authenticated `Admin Upload` / `Admin Modify Product Images` policies. The
 D-13 interim (`20260103`) and the no-auth draft (`20260102`) remain as replay
 history — on a fresh environment the order `02 → 03 → 04` composes to the
-current hosted state.
+hosted state as it was on 2026-10-23.
+
+> **Status note (2026-10-25):** this decision is **no longer in force on the
+> hosted project.** It was verified live on 2026-10-23, then the project was
+> rebuilt around 2026-10-24/25: `admins` → `404 PGRST205`, so `20261025` and
+> this lockdown are not applied and anon catalogue writes are permitted again.
+> The decision itself stands as the design to re-apply — see
+> `backend/contracts/write-path-policies.md` and the OA-2 row in
+> `PROJECT_STATE.md`.
 
 **Why.** Completes D-5 as designed and shuts both residual risks D-13 had
 accepted: anonymous uploads into `product-images` and anonymous taxonomy

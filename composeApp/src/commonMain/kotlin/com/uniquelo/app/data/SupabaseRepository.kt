@@ -228,7 +228,8 @@ class SupabaseRepository(
             if (throwable is CancellationException) throw throwable
             // Roll back the orphaned header row on any item failure; ignore
             // rollback failures (RLS may forbid DELETE) and surface the
-            // original cause. Best-effort until place_order is deployed.
+            // original cause. Fallback path only: place_order is installed on the
+            // hosted project (verified 2026-10-25), so the atomic RPC is preferred.
             runCatching {
                 val response = client.delete("${SupabaseConfig.REST_URL}/orders") {
                     parameter("id", "eq.$orderId")

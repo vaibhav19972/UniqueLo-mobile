@@ -24,12 +24,13 @@ and current hosted drift are recorded in
 
 Deployment state:
 
-- **OA-1 closed** — `place_order` v2 and `get_order_details` are applied and
-  live-verified on the hosted project; checkout uses the atomic RPC.
-- **OA-2 / OA-5 closed (D-15)** — the authenticated-admin lockdown
-  (`20260104000000_lockdown_auth_admin.sql`) is live: `anon` is read-only on all
-  nine catalogue tables and storage uploads require `authenticated`. The earlier
-  interim/no-auth drafts remain as replay history.
+- **OA-1 closed** — `place_order` v2 + `get_order_details` are **installed**
+  (re-verified read-only 2026-10-25: empty-items call → `400 22023`, the function's
+  own guard). Orders are being received on web and mobile.
+- **OA-2 / OA-5 — REOPENED 2026-10-25.** The hosted project was rebuilt after these
+  were verified: `admins` is absent (`404 PGRST205`), so `20261025` and the
+  authenticated-admin lockdown are not in force and the catalogue write path is
+  open. See `backend/contracts/write-path-policies.md`.
 - **OA-6 open** — `authenticated` currently means *any* signed-in user, not a
   verified admin. Gate catalogue/storage policies by an admin claim before
   public sign-up ships. See [RLS warning](#rls-warning).
@@ -133,7 +134,7 @@ between left a header row with no items. `SupabaseRepository.createOrder` now:
 
 1. Calls the Postgres function `place_order(p_order jsonb, p_items jsonb)`
    first, which writes both tables in one transaction
-   (`supabase/migrations/20260101000000_place_order_fn.sql`). The function
+   (`../backend/migrations/20260101000000_place_order_fn.sql`). The function
    ignores the client-supplied item `order_id` and always attaches items to the
    header it just wrote.
 2. Falls back to the legacy two-call flow only when the function is not
@@ -238,19 +239,16 @@ Indian digit grouping (`₹12,34,567`).
 
 ### RLS warning
 
-The **current** hosted state is the authenticated-admin lockdown (D-15,
-`20260104000000_lockdown_auth_admin.sql`):
+The hosted project was **rebuilt around 2026-10-24/25**. Measured read-only on
+2026-10-25 (detail in `backend/contracts/write-path-policies.md` §0):
 
-- `anon` keeps public `SELECT` on the nine catalogue tables, so the storefront
-  reads still work.
-- `anon` has **no** INSERT/UPDATE/DELETE on the nine catalogue tables; the
-  refusal battery returns `42501` for all nine.
-- `orders` has no public SELECT (live probe: `200` with 0 rows).
-- Uploads to the `product-images` bucket require `authenticated`; the old public
-  upload policy is gone.
-- Guest checkout, order items, newsletter signup and `place_order` continue to
-  work (`place_order` is `SECURITY DEFINER` and does not depend on anon table
-  writes).
+- `products` carries the `20261024` trust/marketplace columns; `is_mock`,
+  `intensity` and the retired `sold_count`/`batch_*`/`craft_*` are absent.
+- `rpc/place_order` and `get_order_details` are **installed**; orders land.
+- `products.intensity` → `42703`: the web taxonomy migration is **not** applied.
+- `admins` → `404`: the `20261025` admin allowlist is **not** applied, so the
+  catalogue write path is still open to the publishable key (accepted risk).
+- `publish_product` exists but is not anon-executable (`42501`).
 
 **Remaining gate (OA-6):** `authenticated` is not an admin predicate. Catalogue
 policies use `using (true) with check (true)` and storage policies check only
@@ -317,11 +315,11 @@ iosApp/
   iosApp/Info.plist                orientations, launch screen, bundle metadata
   iosApp/Assets.xcassets           app icon, AccentColor, LaunchBackground
   README.md                        generate/build instructions (D-17)
-supabase/migrations/
-  20260101000000_place_order_fn.sql       atomic orders SQL (v2, live)
-  20260102000000_lock_catalogue_writes.sql  full no-auth lockdown draft (replay history; superseded by D-15)
-  20260103000000_lockdown_interim.sql     interim six-table revoke (D-13, replay history)
-  20260104000000_lockdown_auth_admin.sql  authenticated-admin lockdown (D-15, live)
+../backend/migrations/                  SHARED with web/ (single chain)
+  20260101000000_place_order_fn.sql       atomic orders SQL (installed)
+  20260102000000_lock_catalogue_writes.sql  full no-auth lockdown draft (replay history)
+  20260103000000_lockdown_interim.sql     interim six-table revoke (replay history)
+  20260104000000_lockdown_auth_admin.sql  authenticated-admin lockdown (not in force after rebuild)
 docs/
   PROJECT_STATE.md, DECISIONS.md, CONVENTIONS.md
   phase-1-audit.md, phase-2-audit.md      findings + evidence
@@ -384,18 +382,27 @@ persisted user choice, and controls meet 48dp/contrast/role requirements. See
 [`DECISIONS.md` D-16](docs/DECISIONS.md#d-16--phase-3-design-system-uniqlo-shell-satoshi-3-state-theme-accepted-2026-10-23).
 
 The Phase 2 direction — bone paper, serif display, acid lime and rust — is
-superseded. Batch numbers (`Batch 01 / 50`) remain part of product identity.
+superseded. The `Batch 01 / 50` identity line described here is retired: the
+`batch_number` / `batch_total` columns were dropped by
+`migrations/20261024_data_model_trust_fields.sql` and the mobile model still
+carries nullable `batchNumber` / `batchTotal` fields that no live row populates.
 
 ## Verification
 
 - `:composeApp:assembleDebug` — passes
-- `:composeApp:testDebugUnitTest` — 46 passed, 1 skipped, 0 failures (47 tests:
-  Router 10, RootStore 14, BagStore 7, CatalogStore 3, LocalPersistence 8,
-  ThemeStore 4, live test skipped)
+- `:composeApp:testDebugUnitTest` — 71 passed, 1 skipped, 0 failures (72 tests,
+  measured 2026-10-25 from `build/test-results/testDebugUnitTest`: Router 12,
+  RootStore 16, BagStore 11, LocalPersistence 11, ReviewStore 9, WishlistStore 5,
+  ThemeStore 4, CatalogStore 3, live test 1 skipped).
+  `:composeApp:iosSimulatorArm64Test` runs the same 72 (71 passed / 1 skipped).
+  The older "47 tests" figure was a pre-D-18/D-19 run — before `WishlistStore`
+  and `ReviewStore` existed and before suites grew.
 - `:composeApp:lintDebug` — 0 errors, 12 warnings (dependency/version updates
   and the v26 adaptive-icon folder; see OA-3)
-- Live catalogue decode verified against the project: 10 products, 3 universes,
-  variants, remote images, embroidery details and reviews map correctly
+- Live catalogue decode verified against the hosted project (re-measured
+  read-only 2026-10-25: **29 products, 4 universes**, 197 variants, 278 images,
+  29 embroidery rows); variants, remote CDN images, embroidery details and
+  reviews map correctly
 - Shared-backend contract verified against the web repo + hosted project
   (2026-10-23): 13 tables, `place_order` live, one-to-one embroidery embed;
   current drift and the fragile invariants are in
@@ -432,8 +439,11 @@ superseded. Batch numbers (`Batch 01 / 50`) remain part of product identity.
 - [x] **OA-1** — `place_order` v2 + `get_order_details` applied and verified
       live on the hosted project.
 - [x] **OA-2 / OA-5** — authenticated-admin lockdown
-      (`20260104000000_lockdown_auth_admin.sql`) applied and live-verified:
-      anon reads intact, anon writes refused on all nine catalogue tables.
+      (`20260104000000_lockdown_auth_admin.sql`) was applied and verified on
+      2026-10-23. **REOPENED 2026-10-25:** the hosted project was rebuilt
+      afterwards, `admins` is absent (`404`), so the lockdown is not in force and
+      anon catalogue writes are permitted again. See
+      `backend/contracts/write-path-policies.md`.
 - [ ] **OA-6** — add an admin claim/allowlist so `authenticated` is not blanket
       admin power; required before public sign-up.
 - [ ] **OA-3** — revisit lint's Kotlin analyser when the toolchain moves to

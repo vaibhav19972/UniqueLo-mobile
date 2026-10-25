@@ -11,7 +11,7 @@
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | git history + baseline | ✅ `a651be8` |
-| 1 | Defects & safety: rotation/process-death survival, offline-first cache, bag journal, atomic orders, saveable UI state | ✅ code complete & audited; OA-1 + OA-2 deployed and live-verified — authenticated-admin catalogue lockdown live (D-15) |
+| 1 | Defects & safety: rotation/process-death survival, offline-first cache, bag journal, atomic orders, saveable UI state | ✅ code complete & audited; OA-1 closed. OA-2 **reopened 2026-10-25** — lockdown not in force after the hosted rebuild (see `backend/contracts/write-path-policies.md`) |
 | 1-audit | Independent audit + fixes (`docs/phase-1-audit.md`) | ✅ `590cd3f` — 24 passed / 1 skipped, verified |
 | **2** | **Architecture: type-safe navigation, store split (Catalog/Bag/Checkout/Newsletter), DI graph, CI pipeline** | ✅ `6840046` + `37937a0` + `76f91af` ; docs+SQL `78a5d6b` ; crash fix `ef321c6` ; audit fixes `9c5dcc4` (`docs/phase-2-audit.md`) |
 | **3** | **Design elevation: Uniqlo-inspired shell, Satoshi typography, 3-state theme, shared-element card→PDP, 48dp targets + contrast pass** | ✅ design complete in this commit — `assembleDebug`, 47 tests, lint, iOS target all green; OA-6 remains the release gate, not a design dependency |
@@ -22,8 +22,8 @@
 
 | ID | Source | Action | Status |
 |---|---|---|---|
-| OA-1 | A12 | ~~Deploy `place_order_fn.sql` **v2**~~ **CLOSED**. Live-verified 2026-10-23 via publishable-key REST (read + rollback probes only, nothing written): named-args call → **400 `22023`** items-guard; `get_order_details` bad uuid → 400 `22P02`, stranger email → 200 `null`; junk-uuid-item probe → 400 **and** follow-up lookup → `null` ⇒ atomic rollback confirmed on the hosted project. Verify-form note: `{}` alone binds no args → `PGRST202` is *expected*, not a failure; use `{"p_order":{},"p_items":"[]"}` | **CLOSED — deployed + live-verified** |
-| OA-2 | A13 | ~~Full lockdown now~~ → **shipped 2026-10-23 as the authenticated-admin variant** `20260104000000_lockdown_auth_admin.sql` (D-15) — the Admin Studio moved to Supabase Auth, so the nine-table write policies/grants fell from `anon`, writes were granted to `authenticated`, and storage upload moved public → `authenticated`. Interim `20260103` and no-auth draft `20260102` remain as replay history (order 02 → 03 → 04) | **CLOSED — live-verified**: anon reads 9/9 `200`, `orders` read → 0 rows, anon INSERT refusal battery → `42501` on all nine tables |
+| OA-1 | A12 | ~~Deploy `place_order_fn.sql` **v2**~~ **CLOSED**. Live-verified 2026-10-23 via publishable-key REST (read + rollback probes only, nothing written): named-args call → **400 `22023`** items-guard; `get_order_details` bad uuid → 400 `22P02`, stranger email → 200 `null`; junk-uuid-item probe → 400 **and** follow-up lookup → `null` ⇒ atomic rollback confirmed on the hosted project. Verify-form note: `{}` alone binds no args → `PGRST202` is *expected*, not a failure; use `{"p_order":{},"p_items":"[]"}` | **CLOSED** — re-verified read-only 2026-10-25: RPC installed (`400 22023` empty-items guard), `get_order_details` 200; orders landing on web + mobile |
+| OA-2 | A13 | ~~Full lockdown now~~ → **shipped 2026-10-23 as the authenticated-admin variant** `20260104000000_lockdown_auth_admin.sql` (D-15) — the Admin Studio moved to Supabase Auth, so the nine-table write policies/grants fell from `anon`, writes were granted to `authenticated`, and storage upload moved public → `authenticated`. Interim `20260103` and no-auth draft `20260102` remain as replay history (order 02 → 03 → 04) | **REOPENED 2026-10-25** — the hosted project was rebuilt after this verification. `admins` → `404 PGRST205`, so `20261025` and the authenticated-admin lockdown are not in force; the catalogue write path is open (accepted risk). See `backend/contracts/write-path-policies.md` |
 | OA-3 | A17 | AGP 8.13.2 lint analyser is a Kotlin 2.2 reader against 2.4.21 metadata — Kotlin static checks inside lint may be incomplete. Revisit when toolchain upgrades to AGP 9.x | OPEN — revisit later |
 | OA-4 | A16 | Cache/journal/theme preference are read synchronously in the Store constructor (UI thread). Acceptable at MVP scale; revisit at catalogue scale | ACCEPTED (recorded) |
 | OA-5 | D-13 | ~~Deploy the full lockdown when an admin gate lands~~ **trigger fired 2026-10-23** — Admin Studio authenticated; completion shipped as `20260104` (D-15) rather than the bare-revoke `20260102`, which now stays as replay history | **CLOSED** |
@@ -36,7 +36,7 @@ web repository:
 
 - `/Users/apple/UniqueLo/backend/schema.sql` — tables, indexes, RLS,
   storage bucket
-- `supabase/migrations/20261013_taxonomy_columns.sql` — taxonomy columns
+- `../backend/migrations/01_web_20261013_taxonomy_columns.sql` — taxonomy columns (**not applied** on hosted)
 - `../backend/production-seed.sql` / `../backend/seed.sql` — hosted catalogue data
 - Hosted project: `https://heimnfjuwmmmejqcjbbd.supabase.co`
 
@@ -45,7 +45,7 @@ project, and then is reflected here (DTO/mapping/docs) in the same change set.
 Never add mobile-only tables or columns. The web repo may contain uncommitted
 user work; mobile tasks must not rewrite it.
 
-**Tables (13).** Nine catalogue tables — `universes`, `motifs`, `categories`,
+**Tables (14 once `20261024` lands — it adds `attribute_definitions`).** Nine catalogue tables — `universes`, `motifs`, `categories`,
 `garments`, `collections`, `products`, `variants`, `product_images`,
 `embroidery_details` — plus `reviews`, `newsletter_subscribers`, `orders`,
 `order_items`.
@@ -57,8 +57,7 @@ user work; mobile tasks must not rewrite it.
 `orders` has no public SELECT; use `get_order_details` if order lookup is ever
 needed.
 
-**Live verification (2026-10-23, publishable-key REST, read-only except one
-probe row that was deleted):**
+**Live verification (2026-10-23 — superseded by the 2026-10-24/25 rebuild; kept as history):**
 
 | Check | Result |
 |---|---|
@@ -67,7 +66,7 @@ probe row that was deleted):**
 | `get_order_details` | live — bad uuid → `400 22P02` |
 | `embroidery_details` embed | returned as an **object**, not an array (see invariant below) |
 | `products.intensity` | **absent** (`400 42703`) — web taxonomy migration not applied to hosted |
-| Interim lockdown (D-13) | **not applied at audit time** — anon `garments` INSERT → `201`; probe row `__audit_probe__` deleted immediately, no net data change. Superseded by the D-15 authenticated-admin lockdown (`42501` on all nine tables). |
+| Interim lockdown (D-13) | **not applied at audit time** — anon `garments` INSERT → `201`; probe row `__audit_probe__` deleted immediately, no net data change. Was superseded on 2026-10-23 by the D-15 authenticated-admin lockdown (`42501` on all nine tables) — **but that too is no longer in force after the 2026-10-24/25 rebuild; see the OA-2 row. Anon catalogue writes are permitted again (measured 2026-10-25).** |
 
 **Fragile invariants (break the mobile app if violated):**
 
