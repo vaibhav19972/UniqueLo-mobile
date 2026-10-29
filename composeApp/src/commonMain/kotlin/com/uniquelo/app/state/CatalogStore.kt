@@ -40,6 +40,10 @@ class CatalogStore(
         private set
     var universeSlug by mutableStateOf<String?>(null)
         private set
+    var gender by mutableStateOf<String?>(null)
+        private set
+    var intensity by mutableStateOf<String?>(null)
+        private set
 
     var catalogState by mutableStateOf<CatalogState>(CatalogState.Loading)
         private set
@@ -95,11 +99,11 @@ class CatalogStore(
 
     val results: List<Product>
         get() = if (query.isBlank()) {
-            filtered(query, categorySlug, universeSlug)
+            filtered(query, categorySlug, universeSlug, gender, intensity)
         } else {
             // Search is global: the universe/category cards are hidden while
             // typing, so applying an invisible filter would be confusing.
-            filtered(query, categorySlug = null, universeSlug = null)
+            filtered(query, categorySlug = null, universeSlug = null, gender = null, intensity = null)
         }
 
     fun load(force: Boolean = false) {
@@ -139,21 +143,35 @@ class CatalogStore(
         universeSlug = if (universeSlug == slug) null else slug
     }
 
+    fun selectGender(value: String?) {
+        gender = if (gender == value) null else value
+    }
+
+    fun selectIntensity(value: String?) {
+        intensity = if (intensity == value) null else value
+    }
+
     fun resetFilters() {
         query = ""
         categorySlug = null
         universeSlug = null
+        gender = null
+        intensity = null
     }
 
     fun filtered(
         query: String,
         categorySlug: String?,
         universeSlug: String?,
+        gender: String? = this.gender,
+        intensity: String? = this.intensity,
     ): List<Product> {
         val needle = query.trim()
         return products.filter { product ->
             val inUniverse = universeSlug == null || product.universeSlug == universeSlug
             val inCategory = categorySlug == null || product.categorySlug == categorySlug
+            val inGender = gender == null || product.gender.equals(gender, ignoreCase = true) || product.gender.equals("unisex", ignoreCase = true)
+            val inIntensity = intensity == null || product.intensity.equals(intensity, ignoreCase = true)
             val matches = needle.isEmpty() || listOfNotNull(
                 product.name,
                 product.subtitle,
@@ -164,7 +182,7 @@ class CatalogStore(
                 product.craftCluster,
                 product.tags.joinToString(" "),
             ).any { it.contains(needle, ignoreCase = true) }
-            inUniverse && inCategory && matches
+            inUniverse && inCategory && inGender && inIntensity && matches
         }
     }
 }

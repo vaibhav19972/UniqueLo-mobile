@@ -74,14 +74,14 @@ class CheckoutStore(
     fun submitOrder(
         form: CheckoutForm,
         lines: List<CartLine>,
-        onOrderCommitted: () -> Unit,
+        onOrderCommitted: (PlacedOrder) -> Unit,
     ) {
         if (orderState is OrderState.Submitting) return
         orderState = OrderState.Submitting
         scope.launch {
             try {
                 val order = repository.createOrder(form, lines)
-                onOrderCommitted()
+                onOrderCommitted(order)
                 orderState = OrderState.Success(order)
             } catch (cancellation: CancellationException) {
                 throw cancellation

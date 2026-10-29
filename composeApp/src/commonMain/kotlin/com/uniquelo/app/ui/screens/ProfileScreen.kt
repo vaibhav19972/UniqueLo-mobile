@@ -43,7 +43,9 @@ import com.uniquelo.app.ui.theme.Palette
 fun ProfileScreen(
     theme: ThemeStore,
     savedCount: Int,
+    ordersCount: Int = 0,
     onOpenSaved: () -> Unit,
+    onOpenOrders: (() -> Unit)? = null,
     onBrowse: () -> Unit,
 ) {
     LazyColumn(
@@ -103,7 +105,7 @@ fun ProfileScreen(
             Spacer(Modifier.height(16.dp))
 
             Row(modifier = Modifier.fillMaxWidth()) {
-                Stat(value = "0", label = "Orders", modifier = Modifier.weight(1f))
+                Stat(value = ordersCount.toString(), label = "Orders", modifier = Modifier.weight(1f))
                 Stat(value = savedCount.toString(), label = "Saved", modifier = Modifier.weight(1f))
                 Stat(value = "0", label = "Alerts", modifier = Modifier.weight(1f))
             }
@@ -151,7 +153,7 @@ fun ProfileScreen(
         }
 
         item {
-            ProfileRow("Orders")
+            ProfileRow(if (ordersCount > 0) "Orders ($ordersCount)" else "Orders", onClick = onOpenOrders)
             ProfileRow("Saved pieces", onClick = onOpenSaved)
             ProfileRow("Addresses")
             ProfileRow("Payment methods")

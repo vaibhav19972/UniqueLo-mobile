@@ -164,6 +164,13 @@ fun DiscoverScreen(
                             categories = catalog.categories.map { it.slug to it.label },
                             onSelect = { catalog.selectCategory(it) },
                         )
+                        Spacer(Modifier.height(10.dp))
+                        FacetFilterRow(
+                            selectedGender = catalog.gender,
+                            selectedIntensity = catalog.intensity,
+                            onSelectGender = { catalog.selectGender(it) },
+                            onSelectIntensity = { catalog.selectIntensity(it) },
+                        )
                     }
                 }
 
@@ -540,6 +547,122 @@ private fun CategoryChip(
                 role = Role.Tab,
             )
             .padding(horizontal = 16.dp, vertical = 15.dp),
+    )
+}
+
+@Composable
+private fun FacetFilterRow(
+    selectedGender: String?,
+    selectedIntensity: String?,
+    onSelectGender: (String?) -> Unit,
+    onSelectIntensity: (String?) -> Unit,
+) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectableGroup(),
+        contentPadding = PaddingValues(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        item {
+            FacetFilterChip(
+                label = "ALL GENDERS",
+                selected = selectedGender == null,
+                onClick = { onSelectGender(null) },
+            )
+        }
+        item {
+            FacetFilterChip(
+                label = "MEN",
+                selected = selectedGender == "men",
+                onClick = { onSelectGender("men") },
+            )
+        }
+        item {
+            FacetFilterChip(
+                label = "WOMEN",
+                selected = selectedGender == "women",
+                onClick = { onSelectGender("women") },
+            )
+        }
+        item {
+            FacetFilterChip(
+                label = "UNISEX",
+                selected = selectedGender == "unisex",
+                onClick = { onSelectGender("unisex") },
+            )
+        }
+        item {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 4.dp)
+                    .width(1.dp)
+                    .height(20.dp)
+                    .background(Palette.ControlLine),
+            )
+        }
+        item {
+            FacetFilterChip(
+                label = "ALL INTENSITIES",
+                selected = selectedIntensity == null,
+                onClick = { onSelectIntensity(null) },
+            )
+        }
+        item {
+            FacetFilterChip(
+                label = "QUIET",
+                selected = selectedIntensity == "quiet",
+                onClick = { onSelectIntensity("quiet") },
+            )
+        }
+        item {
+            FacetFilterChip(
+                label = "BALANCED",
+                selected = selectedIntensity == "balanced",
+                onClick = { onSelectIntensity("balanced") },
+            )
+        }
+        item {
+            FacetFilterChip(
+                label = "LOUD",
+                selected = selectedIntensity == "loud",
+                onClick = { onSelectIntensity("loud") },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FacetFilterChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelSmall.copy(
+            fontSize = 10.sp,
+            letterSpacing = 1.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+        ),
+        color = if (selected) Palette.Paper else Palette.Muted,
+        maxLines = 1,
+        modifier = Modifier
+            .height(34.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(if (selected) Palette.Rust else Palette.Sand.copy(alpha = 0.35f))
+            .border(
+                width = 1.dp,
+                color = if (selected) Palette.Rust else Palette.ControlLine,
+                shape = RoundedCornerShape(2.dp),
+            )
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                role = Role.Tab,
+            )
+            .padding(horizontal = 12.dp, vertical = 9.dp),
     )
 }
 

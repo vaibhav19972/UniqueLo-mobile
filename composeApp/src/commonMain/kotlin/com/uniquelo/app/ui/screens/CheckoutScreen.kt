@@ -88,6 +88,8 @@ private fun CheckoutFormScreen(
     // customer's details.
     var name by rememberSaveable(session) { mutableStateOf("") }
     var email by rememberSaveable(session) { mutableStateOf("") }
+    var phone by rememberSaveable(session) { mutableStateOf("") }
+    var paymentMethod by rememberSaveable(session) { mutableStateOf("cod") }
     var address by rememberSaveable(session) { mutableStateOf("") }
     var city by rememberSaveable(session) { mutableStateOf("") }
     var postal by rememberSaveable(session) { mutableStateOf("") }
@@ -175,6 +177,16 @@ private fun CheckoutFormScreen(
             )
             Spacer(Modifier.height(16.dp))
             LabelledField(
+                label = "Phone (for courier delivery)",
+                value = phone,
+                onValueChange = { phone = it; formError = null },
+                placeholder = "10-digit mobile number",
+                keyboardType = KeyboardType.Phone,
+                enabled = !submitting,
+                invalid = attempted && phone.isNotBlank() && !Regex("^[6-9]\\d{9}$").matches(phone.trim().replace(" ", "")),
+            )
+            Spacer(Modifier.height(16.dp))
+            LabelledField(
                 label = "Shipping address",
                 value = address,
                 onValueChange = { address = it; formError = null },
@@ -225,9 +237,55 @@ private fun CheckoutFormScreen(
                 )
             }
 
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "PAYMENT METHOD",
+                style = MaterialTheme.typography.labelSmall,
+                color = Palette.Muted,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (paymentMethod == "cod") Palette.Ink else Palette.Paper)
+                        .border(1.dp, if (paymentMethod == "cod") Palette.Ink else Palette.Line, RoundedCornerShape(4.dp))
+                        .clickable(enabled = !submitting) { paymentMethod = "cod" }
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "Cash on Delivery",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (paymentMethod == "cod") Palette.Paper else Palette.Ink,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (paymentMethod == "upi") Palette.Ink else Palette.Paper)
+                        .border(1.dp, if (paymentMethod == "upi") Palette.Ink else Palette.Line, RoundedCornerShape(4.dp))
+                        .clickable(enabled = !submitting) { paymentMethod = "upi" }
+                        .padding(vertical = 12.dp, horizontal = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "UPI / Card",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (paymentMethod == "upi") Palette.Paper else Palette.Ink,
+                    )
+                }
+            }
+
             Spacer(Modifier.height(18.dp))
             Text(
-                text = "No payment is taken. This creates a reservation in the atelier's order book.",
+                text = if (paymentMethod == "cod") "Pay in cash or UPI upon delivery at your door."
+                else "Order reserved — you will receive a secure payment link on email.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Palette.Muted,
             )
@@ -266,21 +324,26 @@ private fun CheckoutFormScreen(
                     .clickable(enabled = !submitting) {
                         attempted = true
                         formError = null
+                        val phoneDigits = phone.trim().replace(" ", "")
                         when {
                             name.isBlank() -> formError = "Please add a name."
                             !emailRegex.matches(email.trim()) -> formError = "Enter a valid email address."
+                            phoneDigits.isNotBlank() && !Regex("^[6-9]\\d{9}$").matches(phoneDigits) ->
+                                formError = "Please enter a valid 10-digit Indian phone number."
                             address.isBlank() -> formError = "Please add a shipping address."
                             city.isBlank() -> formError = "Please add a city."
                             postal.isBlank() -> formError = "Please add a PIN code."
                             country.isBlank() -> formError = "Please add a country."
                             else -> onSubmit(
                                 CheckoutForm(
-                                    name = name,
-                                    email = email,
-                                    addressLine = address,
-                                    city = city,
-                                    postalCode = postal,
-                                    country = country,
+                                    name = name.trim(),
+                                    email = email.trim(),
+                                    addressLine = address.trim(),
+                                    city = city.trim(),
+                                    postalCode = postal.trim(),
+                                    country = country.trim(),
+                                    phone = phoneDigits.ifBlank { null },
+                                    paymentMethod = paymentMethod,
                                 ),
                             )
                         }

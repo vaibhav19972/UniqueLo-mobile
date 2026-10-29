@@ -23,6 +23,7 @@ class RootStore(
     val theme: ThemeStore,
     val wishlist: WishlistStore,
     val review: ReviewStore,
+    val orders: OrdersStore,
     private val scope: CoroutineScope,
 ) {
     init {
@@ -41,6 +42,9 @@ class RootStore(
     val savedCount: Int get() = wishlist.count
     fun openSaved() { if (router.current != Destination.Saved) router.push(Destination.Saved) }
     fun toggleSaved(slug: String) = wishlist.toggle(slug)
+
+    val ordersCount: Int get() = orders.count
+    fun openOrders() { if (router.current != Destination.Orders) router.push(Destination.Orders) }
 
     // Navigation ----------------------------------------------------------------
 
@@ -86,10 +90,16 @@ class RootStore(
     }
 
     fun submitOrder(form: CheckoutForm) {
+        val lines = bag.takeForOrder()
+        val totalCents = bag.subtotalCents
+        val itemCount = lines.sumOf { it.quantity }
         checkout.submitOrder(
             form = form,
-            lines = bag.takeForOrder(),
-            onOrderCommitted = bag::onOrderCommitted,
+            lines = lines,
+            onOrderCommitted = { order ->
+                bag.onOrderCommitted()
+                orders.recordOrder(order, totalCents, itemCount)
+            },
         )
     }
 

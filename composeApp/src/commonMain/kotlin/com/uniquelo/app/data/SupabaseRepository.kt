@@ -4,6 +4,7 @@ import com.uniquelo.app.model.CartLine
 import com.uniquelo.app.model.Category
 import com.uniquelo.app.model.Collection
 import com.uniquelo.app.model.Motif
+import com.uniquelo.app.model.OrderDetails
 import com.uniquelo.app.model.Product
 import com.uniquelo.app.model.Review
 import com.uniquelo.app.model.Universe
@@ -18,6 +19,7 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -46,6 +48,8 @@ data class CheckoutForm(
     val city: String,
     val postalCode: String,
     val country: String = "India",
+    val phone: String? = null,
+    val paymentMethod: String = "cod",
 )
 
 data class ReviewDraft(
@@ -75,9 +79,17 @@ private data class PlaceOrderPayload(
     @SerialName("p_items") val items: List<OrderItemInsert>,
 )
 
+/** Payload for guest order lookup `get_order_details` Postgres function. */
+@Serializable
+private data class GetOrderDetailsPayload(
+    @SerialName("p_order_id") val orderId: String,
+    @SerialName("p_email") val email: String,
+)
+
 interface UniqueLoRepository {
     suspend fun loadCatalog(): CatalogSnapshot
     suspend fun createOrder(form: CheckoutForm, lines: List<CartLine>): PlacedOrder
+    suspend fun getOrderDetails(orderId: String, email: String): OrderDetails?
     suspend fun subscribe(email: String)
     suspend fun submitReview(review: ReviewDraft)
 }
@@ -159,7 +171,7 @@ class SupabaseRepository(
             id = orderId,
             customerName = form.name.trim(),
             customerEmail = form.email.trim().lowercase(),
-            status = "reserved",
+            status = if (form.paymentMethod == "cod") "confirmed-cod" else "confirmed",
             subtotalCents = subtotal,
             discountCents = 0,
             shippingCents = 0,
@@ -169,6 +181,8 @@ class SupabaseRepository(
                 "city" to form.city.trim(),
                 "postal_code" to form.postalCode.trim(),
                 "country" to form.country.trim(),
+                "phone" to (form.phone?.trim() ?: ""),
+                "payment_method" to form.paymentMethod,
             ),
         )
         val items = lines.map { line ->
@@ -237,6 +251,28 @@ class SupabaseRepository(
                 response.bodyAsText()
             }
             throw throwable
+        }
+    }
+
+    override suspend fun getOrderDetails(orderId: String, email: String): OrderDetails? {
+        val cleanId = orderId.trim()
+        val cleanEmail = email.trim().lowercase()
+        if (cleanId.isEmpty() || cleanEmail.isEmpty()) return null
+
+        return try {
+            val response = client.post("${SupabaseConfig.REST_URL}/rpc/get_order_details") {
+                contentType(ContentType.Application.Json)
+                setBody(GetOrderDetailsPayload(orderId = cleanId, email = cleanEmail))
+            }
+            if (response.status == HttpStatusCode.NotFound) return null
+            ensureSuccess(response)
+            val text = response.bodyAsText().trim()
+            if (text == "null" || text.isEmpty()) return null
+            SupabaseJson.decodeFromString<OrderDetailsResponseDto>(text).toDomain()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Throwable) {
+            null
         }
     }
 

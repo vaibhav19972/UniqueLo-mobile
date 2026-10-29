@@ -38,6 +38,7 @@ import com.uniquelo.app.ui.components.UniqueLoBottomBar
 import com.uniquelo.app.ui.screens.BagScreen
 import com.uniquelo.app.ui.screens.CheckoutScreen
 import com.uniquelo.app.ui.screens.DiscoverScreen
+import com.uniquelo.app.ui.screens.OrdersScreen
 import com.uniquelo.app.ui.screens.ProductScreen
 import com.uniquelo.app.ui.screens.ProfileScreen
 import com.uniquelo.app.ui.screens.SavedScreen
@@ -151,6 +152,14 @@ private fun DestinationHost(
             )
         }
 
+        Destination.Orders -> saveableStateHolder.SaveableStateProvider("orders") {
+            OrdersScreen(
+                ordersStore = store.orders,
+                onBack = { router.pop() },
+                onBrowse = { store.selectTab(Destination.Discover) },
+            )
+        }
+
         is Destination.Product -> {
             // Shell resolves the slug against the live catalogue; a refresh
             // that removes the product closes the PDP (same net effect as the
@@ -201,7 +210,9 @@ private fun DestinationHost(
                         Destination.Profile -> ProfileScreen(
                             theme = store.theme,
                             savedCount = store.savedCount,
+                            ordersCount = store.ordersCount,
                             onOpenSaved = { store.openSaved() },
+                            onOpenOrders = { store.openOrders() },
                             onBrowse = { store.selectTab(Destination.Discover) },
                         )
                     }

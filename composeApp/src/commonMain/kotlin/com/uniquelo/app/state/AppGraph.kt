@@ -1,12 +1,14 @@
 package com.uniquelo.app.state
 
 import com.uniquelo.app.data.BagPersistence
+import com.uniquelo.app.data.OrdersPersistence
 import com.uniquelo.app.data.SnapshotCache
 import com.uniquelo.app.data.SupabaseRepository
 import com.uniquelo.app.data.ThemePersistence
 import com.uniquelo.app.data.UniqueLoRepository
 import com.uniquelo.app.data.WishlistPersistence
 import com.uniquelo.app.data.defaultBagPersistence
+import com.uniquelo.app.data.defaultOrdersPersistence
 import com.uniquelo.app.data.defaultSnapshotCache
 import com.uniquelo.app.data.defaultThemePersistence
 import com.uniquelo.app.data.defaultWishlistPersistence
@@ -31,6 +33,7 @@ object AppGraph {
         bagStorage: BagPersistence? = defaultBagPersistence(),
         themeStorage: ThemePersistence? = defaultThemePersistence(),
         wishlistStorage: WishlistPersistence? = defaultWishlistPersistence(),
+        ordersStorage: OrdersPersistence? = defaultOrdersPersistence(),
     ): RootStore {
         val catalogStore = CatalogStore(repository = repository, scope = scope, cache = cache)
         return RootStore(
@@ -45,6 +48,11 @@ object AppGraph {
                 repository = repository,
                 scope = scope,
                 onReviewSubmitted = { slug -> catalogStore.refreshAfterReview(slug) },
+            ),
+            orders = OrdersStore(
+                repository = repository,
+                scope = scope,
+                ordersStorage = ordersStorage,
             ),
             scope = scope,
         )

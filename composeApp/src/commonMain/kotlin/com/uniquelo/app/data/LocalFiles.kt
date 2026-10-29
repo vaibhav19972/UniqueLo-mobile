@@ -40,3 +40,8 @@ internal fun defaultThemePersistence(): ThemePersistence? = runCatching {
 internal fun defaultWishlistPersistence(): WishlistPersistence? = runCatching {
     appFilesPath()?.let(::OkioWishlistPersistence)
 }.getOrNull()
+
+/** Disk-backed order history journal when the platform allows it, else null. */
+internal fun defaultOrdersPersistence(): OrdersPersistence? = runCatching {
+    appFilesPath()?.let(::OkioOrdersPersistence)
+}.getOrNull()

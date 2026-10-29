@@ -3,6 +3,7 @@ package com.uniquelo.app
 import com.uniquelo.app.data.BagPersistence
 import com.uniquelo.app.data.CatalogSnapshot
 import com.uniquelo.app.data.CheckoutForm
+import com.uniquelo.app.data.OrdersPersistence
 import com.uniquelo.app.data.PlacedOrder
 import com.uniquelo.app.data.ReviewDraft
 import com.uniquelo.app.data.SavedLine
@@ -13,6 +14,8 @@ import com.uniquelo.app.data.UniqueLoRepository
 import com.uniquelo.app.data.WishlistPersistence
 import com.uniquelo.app.model.CartLine
 import com.uniquelo.app.model.Category
+import com.uniquelo.app.model.LocalOrderSummary
+import com.uniquelo.app.model.OrderDetails
 import com.uniquelo.app.model.Product
 import com.uniquelo.app.model.Review
 import com.uniquelo.app.model.ThemeMode
@@ -55,6 +58,9 @@ internal class FakeRepository(
         }
         return PlacedOrder(id = "test", code = "UL-TEST", email = form.email)
     }
+
+    var orderDetailsResult: OrderDetails? = null
+    override suspend fun getOrderDetails(orderId: String, email: String): OrderDetails? = orderDetailsResult
 
     override suspend fun subscribe(email: String) = Unit
 
@@ -101,6 +107,19 @@ internal class FakeWishlistPersistence(
     override fun save(slugs: Set<String>) {
         saved.clear()
         saved.addAll(slugs)
+        saves++
+    }
+}
+
+internal class FakeOrdersPersistence(
+    initial: List<LocalOrderSummary> = emptyList(),
+) : OrdersPersistence {
+    val saved = initial.toMutableList()
+    var saves = 0
+    override fun load(): List<LocalOrderSummary> = saved.toList()
+    override fun save(orders: List<LocalOrderSummary>) {
+        saved.clear()
+        saved.addAll(orders)
         saves++
     }
 }

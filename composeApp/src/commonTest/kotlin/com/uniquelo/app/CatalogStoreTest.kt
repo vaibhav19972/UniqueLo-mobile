@@ -1,5 +1,6 @@
 package com.uniquelo.app
 
+import com.uniquelo.app.data.OrdersPersistence
 import com.uniquelo.app.data.SnapshotCache
 import com.uniquelo.app.data.ThemePersistence
 import com.uniquelo.app.data.WishlistPersistence
@@ -39,6 +40,35 @@ class CatalogStoreTest {
         catalog.selectUniverse("itihaas")
         catalog.query = "sakura"
         assertEquals("sakura-hoodie", catalog.results.single().slug)
+    }
+
+    @Test
+    fun filtersByGenderAndIntensity() {
+        val catalog = CatalogStore(
+            repository = FakeRepository(snapshot()),
+            scope = unconfinedScope,
+        )
+        catalog.load()
+
+        // Both products in snapshot have unisex gender and loud intensity
+        catalog.selectIntensity("loud")
+        assertEquals(2, catalog.results.size)
+
+        catalog.selectIntensity("quiet")
+        assertEquals(0, catalog.results.size)
+
+        // Reset intensity
+        catalog.selectIntensity(null)
+        assertEquals(2, catalog.results.size)
+
+        // Unisex matches men and women queries
+        catalog.selectGender("men")
+        assertEquals(2, catalog.results.size)
+
+        // Toggling same selection resets it to null
+        catalog.selectGender("men")
+        assertNull(catalog.gender)
+        assertEquals(2, catalog.results.size)
     }
 
     @Test
@@ -87,6 +117,7 @@ internal fun rootForTest(
     bagStorage: FakeBagJournal? = null,
     themeStorage: ThemePersistence? = null,
     wishlistStorage: WishlistPersistence? = null,
+    ordersStorage: OrdersPersistence? = null,
 ): RootStore = AppGraph.createStore(
     scope = unconfinedScope,
     repository = repository,
@@ -94,4 +125,5 @@ internal fun rootForTest(
     bagStorage = bagStorage,
     themeStorage = themeStorage,
     wishlistStorage = wishlistStorage,
+    ordersStorage = ordersStorage,
 )

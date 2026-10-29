@@ -35,6 +35,23 @@ data class ProductDto(
     @SerialName("craft_region") val craftRegion: String? = null,
     @SerialName("craft_cluster") val craftCluster: String? = null,
     @SerialName("fabric_gsm") val fabricGsm: String? = null,
+    @SerialName("country_of_origin") val countryOfOrigin: String = "IN",
+    @SerialName("cod_available") val codAvailable: Boolean = true,
+    @SerialName("delivery_days_min") val deliveryDaysMin: Int? = 4,
+    @SerialName("delivery_days_max") val deliveryDaysMax: Int? = 7,
+    @SerialName("return_window_days") val returnWindowDays: Int = 7,
+    @SerialName("weight_grams") val weightGrams: Int? = null,
+    @SerialName("hsn_code") val hsnCode: String? = null,
+    @SerialName("style_code") val styleCode: String? = null,
+    @SerialName("fit_notes") val fitNotes: String? = null,
+    @SerialName("model_height_cm") val modelHeightCm: Int? = null,
+    @SerialName("model_worn_size") val modelWornSize: String? = null,
+    @SerialName("package_length_mm") val packageLengthMm: Int? = null,
+    @SerialName("package_width_mm") val packageWidthMm: Int? = null,
+    @SerialName("package_height_mm") val packageHeightMm: Int? = null,
+    @SerialName("manufacturer_name") val manufacturerName: String? = null,
+    @SerialName("manufacturer_address") val manufacturerAddress: String? = null,
+    @SerialName("packed_by") val packedBy: String? = null,
     val variants: List<VariantDto> = emptyList(),
     @SerialName("product_images") val productImages: List<ProductImageDto> = emptyList(),
     @SerialName("embroidery_details") val embroideryDetails: EmbroideryDto? = null,
@@ -51,6 +68,7 @@ data class VariantDto(
     @SerialName("compare_at_price_cents") val compareAtPriceCents: Int? = null,
     val status: String = "in-stock",
     val quantity: Int = 0,
+    val barcode: String? = null,
 )
 
 @Serializable
@@ -180,4 +198,38 @@ data class ReviewInsert(
     val rating: Int,
     val title: String,
     val comment: String,
+)
+
+@Serializable
+data class OrderRecordDto(
+    val id: String,
+    @SerialName("customer_name") val customerName: String? = null,
+    @SerialName("customer_email") val customerEmail: String = "",
+    val status: String = "confirmed",
+    @SerialName("subtotal_cents") val subtotalCents: Int = 0,
+    @SerialName("discount_cents") val discountCents: Int = 0,
+    @SerialName("shipping_cents") val shippingCents: Int = 0,
+    @SerialName("total_cents") val totalCents: Int = 0,
+    @SerialName("coupon_code") val couponCode: String? = null,
+    @SerialName("gift_note") val giftNote: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
+)
+
+@Serializable
+data class OrderItemRecordDto(
+    val id: String,
+    @SerialName("order_id") val orderId: String,
+    @SerialName("product_slug") val productSlug: String = "",
+    @SerialName("variant_sku") val variantSku: String = "",
+    @SerialName("product_name") val productName: String = "",
+    val color: String = "",
+    val size: String = "",
+    val quantity: Int = 1,
+    @SerialName("price_cents") val priceCents: Int = 0,
+)
+
+@Serializable
+data class OrderDetailsResponseDto(
+    val order: OrderRecordDto,
+    val items: List<OrderItemRecordDto> = emptyList(),
 )

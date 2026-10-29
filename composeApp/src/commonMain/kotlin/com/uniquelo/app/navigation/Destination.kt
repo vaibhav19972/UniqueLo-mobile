@@ -40,6 +40,11 @@ sealed interface Destination {
     data object Checkout : Destination {
         override val label: String? get() = null
     }
+
+    /** Orders / Order history and guest order tracking overlay. */
+    data object Orders : Destination {
+        override val label: String? get() = null
+    }
 }
 
 /**

@@ -4,6 +4,8 @@ import com.uniquelo.app.model.Category
 import com.uniquelo.app.model.Collection
 import com.uniquelo.app.model.Embroidery
 import com.uniquelo.app.model.Motif
+import com.uniquelo.app.model.OrderDetails
+import com.uniquelo.app.model.OrderItemDetail
 import com.uniquelo.app.model.Product
 import com.uniquelo.app.model.ProductImage
 import com.uniquelo.app.model.Review
@@ -63,6 +65,7 @@ internal fun VariantDto.toDomain() = Variant(
     compareAtPriceCents = compareAtPriceCents,
     status = status,
     quantity = quantity,
+    barcode = barcode,
 )
 
 internal fun ProductImageDto.toDomain() = ProductImage(
@@ -129,6 +132,24 @@ internal fun ProductDto.toDomain(
     craftRegion = craftRegion?.trim(),
     craftCluster = craftCluster?.trim(),
     fabricGsm = fabricGsm,
+    countryOfOrigin = countryOfOrigin.ifBlank { "IN" },
+    codAvailable = codAvailable,
+    deliveryDaysMin = deliveryDaysMin,
+    deliveryDaysMax = deliveryDaysMax,
+    returnWindowDays = returnWindowDays,
+    weightGrams = weightGrams,
+    hsnCode = hsnCode,
+    styleCode = styleCode,
+    fitNotes = fitNotes?.trim(),
+    modelHeightCm = modelHeightCm,
+    modelWornSize = modelWornSize,
+    packageLengthMm = packageLengthMm,
+    packageWidthMm = packageWidthMm,
+    packageHeightMm = packageHeightMm,
+    manufacturerName = manufacturerName?.trim(),
+    manufacturerAddress = manufacturerAddress?.trim(),
+    packedBy = packedBy?.trim(),
+    intensity = if ((expressionScore ?: 3) <= 2) "quiet" else if ((expressionScore ?: 3) == 3) "balanced" else "loud",
     variants = variants.map { it.toDomain() },
     images = productImages.map { it.toDomain() }.sortedBy { it.sortOrder },
     embroidery = embroideryDetails?.toDomain(),
@@ -137,4 +158,29 @@ internal fun ProductDto.toDomain(
     category = category,
     collection = collection,
     motif = motif,
+)
+
+internal fun OrderItemRecordDto.toDomain() = OrderItemDetail(
+    id = id,
+    productSlug = productSlug,
+    variantSku = variantSku,
+    productName = productName,
+    color = color,
+    size = size,
+    quantity = quantity,
+    priceCents = priceCents,
+)
+
+internal fun OrderDetailsResponseDto.toDomain() = OrderDetails(
+    id = order.id,
+    code = "UL-" + order.id.replace("-", "").take(8).uppercase(),
+    customerName = order.customerName ?: "Valued Collector",
+    customerEmail = order.customerEmail,
+    status = order.status,
+    subtotalCents = order.subtotalCents,
+    discountCents = order.discountCents,
+    shippingCents = order.shippingCents,
+    totalCents = order.totalCents,
+    createdAt = order.createdAt,
+    items = items.map { it.toDomain() },
 )

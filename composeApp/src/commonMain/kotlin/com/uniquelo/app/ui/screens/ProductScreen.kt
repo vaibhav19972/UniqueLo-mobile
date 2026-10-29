@@ -172,6 +172,57 @@ fun ProductScreen(
                 }
             }
 
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (product.codAvailable) {
+                    Text(
+                        text = "COD AVAILABLE",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Palette.Olive,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Palette.Olive.copy(alpha = 0.12f))
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                    )
+                }
+                if (product.deliveryDaysMin != null && product.deliveryDaysMax != null) {
+                    Text(
+                        text = "${product.deliveryDaysMin}–${product.deliveryDaysMax} DAYS DELIVERY",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Palette.Muted,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Palette.Line.copy(alpha = 0.5f))
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                    )
+                }
+                if (product.returnWindowDays > 0) {
+                    Text(
+                        text = "${product.returnWindowDays}-DAY RETURNS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Palette.Muted,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Palette.Line.copy(alpha = 0.5f))
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                    )
+                } else {
+                    Text(
+                        text = "NON-RETURNABLE",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Palette.Muted,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Palette.Line.copy(alpha = 0.5f))
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                    )
+                }
+            }
+
             Spacer(Modifier.height(18.dp))
             HorizontalDivider(color = Palette.Line)
             Spacer(Modifier.height(18.dp))
@@ -584,8 +635,24 @@ private fun ProductStory(product: Product) {
     product.collectionName?.let { collection ->
         DetailRow("Collection", collection)
     }
-    DetailRow("Ships", "3–5 working days, tracked")
-    DetailRow("Returns", "14 days, unworn")
+    product.styleCode?.let { code ->
+        DetailRow("Style Code", code)
+    }
+    DetailRow(
+        "Ships",
+        if (product.deliveryDaysMin != null && product.deliveryDaysMax != null)
+            "${product.deliveryDaysMin}–${product.deliveryDaysMax} working days, tracked"
+        else "3–5 working days, tracked"
+    )
+    DetailRow(
+        "Returns",
+        if (product.returnWindowDays > 0) "${product.returnWindowDays} days, unworn"
+        else "Non-returnable (bespoke item)"
+    )
+    DetailRow(
+        "Origin",
+        if (product.countryOfOrigin == "IN") "Made in India" else product.countryOfOrigin
+    )
 
     Spacer(Modifier.height(18.dp))
     Row(
