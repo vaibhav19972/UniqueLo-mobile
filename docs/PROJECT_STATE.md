@@ -14,7 +14,7 @@
 | 1 | Defects & safety: rotation/process-death survival, offline-first cache, bag journal, atomic orders, saveable UI state | ✅ code complete & audited; OA-1 closed. OA-2 **closed 2026-10-31** — anonymous catalogue write path is closed (`42501` probe verified) |
 | 1-audit | Independent audit + fixes (`docs/phase-1-audit.md`) | ✅ `590cd3f` — 24 passed / 1 skipped, verified |
 | **2** | **Architecture: type-safe navigation, store split (Catalog/Bag/Checkout/Newsletter), DI graph, CI pipeline** | ✅ `6840046` + `37937a0` + `76f91af` ; docs+SQL `78a5d6b` ; crash fix `ef321c6` ; audit fixes `9c5dcc4` (`docs/phase-2-audit.md`) |
-| **3** | **Design elevation: Uniqlo-inspired shell, Satoshi typography, 3-state theme, shared-element card→PDP, 48dp targets + contrast pass** | ✅ design complete in this commit — `assembleDebug`, 47 tests, lint, iOS target all green; OA-6 remains the release gate, not a design dependency |
+| **3** | **Design elevation: Uniqlo-inspired shell, Satoshi typography, 3-state theme, shared-element card→PDP, 48dp targets + contrast pass** | ✅ design complete in this commit — `assembleDebug`, 86 tests, lint, iOS target all green; OA-6 remains the release gate, not a design dependency |
 | 4 | wishlist + reviews + stock ✅ (D-18, D-19, D-20); **server pricing engine customer (D-21) ✅**; order history open — blocked on auth | ⏳ |
 | 5 | Release engineering: signed builds, R8 map, icons/splash, deep links | ⏳ (iOS icon/launch asset done in D-17) |
 
