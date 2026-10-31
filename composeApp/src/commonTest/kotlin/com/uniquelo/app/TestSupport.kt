@@ -3,8 +3,12 @@ package com.uniquelo.app
 import com.uniquelo.app.data.BagPersistence
 import com.uniquelo.app.data.CatalogSnapshot
 import com.uniquelo.app.data.CheckoutForm
+import com.uniquelo.app.data.CouponOffer
+import com.uniquelo.app.data.CouponResult
 import com.uniquelo.app.data.OrdersPersistence
 import com.uniquelo.app.data.PlacedOrder
+import com.uniquelo.app.data.QuoteLine
+import com.uniquelo.app.data.QuoteResponse
 import com.uniquelo.app.data.ReviewDraft
 import com.uniquelo.app.data.SavedLine
 import com.uniquelo.app.data.SnapshotCache
@@ -39,6 +43,17 @@ internal class FakeRepository(
     var reviewException: Exception? = null
     val submittedReviews = mutableListOf<ReviewDraft>()
 
+    var quoteOrderResult: QuoteResponse? = null
+    var quoteOrderFailure: Throwable? = null
+    var quoteOrderGate: CompletableDeferred<Unit>? = null
+    var lastQuoteOrderLines: List<CartLine>? = null
+    var lastQuoteOrderCoupon: String? = null
+    var lastQuoteOrderPaymentMethod: String? = null
+
+    var orderPricingResult: QuoteResponse? = null
+    var returnNullPricingInOrder: Boolean = false
+    var lastSubmittedForm: CheckoutForm? = null
+
     /** When set, [createOrder] suspends until the test releases it. */
     var orderGate: CompletableDeferred<Unit>? = null
 
@@ -50,13 +65,69 @@ internal class FakeRepository(
         return snapshot
     }
 
+    override suspend fun quoteOrder(
+        lines: List<CartLine>,
+        couponCode: String?,
+        paymentMethod: String,
+    ): QuoteResponse {
+        lastQuoteOrderLines = lines
+        lastQuoteOrderCoupon = couponCode
+        lastQuoteOrderPaymentMethod = paymentMethod
+        quoteOrderGate?.await()
+        quoteOrderFailure?.let { throw it }
+        return quoteOrderResult ?: run {
+            val subtotal = lines.sumOf { it.lineTotalCents }
+            val shipping = if (subtotal >= 149900) 0 else 9900
+            val codFee = if (paymentMethod.equals("cod", ignoreCase = true)) 5000 else 0
+            val discount = if (couponCode == "DISCOUNT100") 10000 else 0
+            val total = (subtotal - discount + shipping + codFee).coerceAtLeast(0)
+            QuoteResponse(
+                lines = lines.map {
+                    QuoteLine(
+                        sku = it.variant.sku,
+                        size = it.variant.size,
+                        color = it.variant.color,
+                        quantity = it.quantity,
+                        productSlug = it.product.slug,
+                        stockAvailable = it.variant.quantity,
+                        compareAtCents = it.variant.compareAtPriceCents,
+                        unitPriceCents = it.variant.priceCents,
+                        lineTotalCents = it.lineTotalCents,
+                    )
+                },
+                units = lines.sumOf { it.quantity },
+                coupon = when (couponCode) {
+                    null -> null
+                    "NOPE" -> CouponResult(code = "NOPE", error = "This code is not valid.")
+                    else -> CouponResult(code = couponCode, discountValue = discount)
+                },
+                totalCents = total,
+                codFeeCents = codFee,
+                discountCents = discount,
+                paymentMethod = if (paymentMethod.equals("cod", ignoreCase = true)) "cod" else "prepaid",
+                shippingCents = shipping,
+                subtotalCents = subtotal,
+                freeShippingThresholdCents = 149900,
+            )
+        }
+    }
+
     override suspend fun createOrder(form: CheckoutForm, lines: List<CartLine>): PlacedOrder {
+        lastSubmittedForm = form
         orderGate?.await()
         if (orderFailures > 0) {
             orderFailures--
             throw SupabaseException("row-level security blocked order insert")
         }
-        return PlacedOrder(id = "test", code = "UL-TEST", email = form.email)
+        val pricing = if (returnNullPricingInOrder) {
+            null
+        } else {
+            orderPricingResult ?: QuoteResponse(
+                totalCents = lines.sumOf { it.lineTotalCents },
+                subtotalCents = lines.sumOf { it.lineTotalCents },
+            )
+        }
+        return PlacedOrder(id = "test", code = "UL-TEST", email = form.email, pricing = pricing)
     }
 
     var orderDetailsResult: OrderDetails? = null

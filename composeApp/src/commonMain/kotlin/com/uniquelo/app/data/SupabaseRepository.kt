@@ -50,6 +50,7 @@ data class CheckoutForm(
     val country: String = "India",
     val phone: String? = null,
     val paymentMethod: String = "cod",
+    val couponCode: String? = null,
 )
 
 data class ReviewDraft(
@@ -64,6 +65,7 @@ data class PlacedOrder(
     val id: String,
     val code: String,
     val email: String,
+    val pricing: QuoteResponse? = null,
 )
 
 class SupabaseException(message: String, val status: Int = 0) : Exception(message) {
@@ -88,6 +90,7 @@ private data class GetOrderDetailsPayload(
 
 interface UniqueLoRepository {
     suspend fun loadCatalog(): CatalogSnapshot
+    suspend fun quoteOrder(lines: List<CartLine>, couponCode: String?, paymentMethod: String): QuoteResponse
     suspend fun createOrder(form: CheckoutForm, lines: List<CartLine>): PlacedOrder
     suspend fun getOrderDetails(orderId: String, email: String): OrderDetails?
     suspend fun subscribe(email: String)
@@ -159,6 +162,33 @@ class SupabaseRepository(
         )
     }
 
+    override suspend fun quoteOrder(
+        lines: List<CartLine>,
+        couponCode: String?,
+        paymentMethod: String,
+    ): QuoteResponse {
+        val items = lines.map { line ->
+            QuoteItemPayload(
+                variantSku = line.variant.sku,
+                quantity = line.quantity,
+            )
+        }
+        val normalizedPaymentMethod = if (paymentMethod.equals("cod", ignoreCase = true)) "cod" else "prepaid"
+        val payload = QuoteOrderPayload(
+            items = items,
+            couponCode = couponCode?.trim()?.ifBlank { null },
+            customerEmail = null,
+            paymentMethod = normalizedPaymentMethod,
+        )
+        val response = client.post("${SupabaseConfig.REST_URL}/rpc/quote_order") {
+            contentType(ContentType.Application.Json)
+            setBody(payload)
+        }
+        ensureSuccess(response)
+        val text = response.bodyAsText()
+        return SupabaseJson.decodeFromString<QuoteResponse>(text)
+    }
+
     override suspend fun createOrder(form: CheckoutForm, lines: List<CartLine>): PlacedOrder {
         require(lines.isNotEmpty()) { "The bag is empty." }
         require(form.name.isNotBlank()) { "Please add a name." }
@@ -166,12 +196,14 @@ class SupabaseRepository(
 
         val orderId = newUuid()
         val subtotal = lines.sumOf { it.lineTotalCents }
+        val normalizedPaymentMethod = if (form.paymentMethod.equals("cod", ignoreCase = true)) "cod" else "prepaid"
+        val cleanCoupon = form.couponCode?.trim()?.ifBlank { null }
 
         val order = OrderInsert(
             id = orderId,
             customerName = form.name.trim(),
             customerEmail = form.email.trim().lowercase(),
-            status = if (form.paymentMethod == "cod") "confirmed-cod" else "confirmed",
+            status = if (normalizedPaymentMethod == "cod") "confirmed-cod" else "confirmed",
             subtotalCents = subtotal,
             discountCents = 0,
             shippingCents = 0,
@@ -182,8 +214,9 @@ class SupabaseRepository(
                 "postal_code" to form.postalCode.trim(),
                 "country" to form.country.trim(),
                 "phone" to (form.phone?.trim() ?: ""),
-                "payment_method" to form.paymentMethod,
+                "payment_method" to normalizedPaymentMethod,
             ),
+            couponCode = cleanCoupon,
         )
         val items = lines.map { line ->
             OrderItemInsert(
@@ -199,6 +232,7 @@ class SupabaseRepository(
             )
         }
 
+        var pricing: QuoteResponse? = null
         try {
             // Preferred path: one atomic Postgres function writes the order
             // header and its items in a single transaction. The SQL lives in
@@ -208,9 +242,8 @@ class SupabaseRepository(
                 setBody(PlaceOrderPayload(order = order, items = items))
             }
             ensureSuccess(response)
-            // Drain the response so Ktor can return the connection to the pool.
-            // The function's return value is intentionally unused.
-            response.bodyAsText()
+            val responseText = response.bodyAsText()
+            pricing = SupabaseJson.decodeFromString<QuoteResponse>(responseText)
         } catch (throwable: Throwable) {
             if (throwable is CancellationException) throw throwable
             if (throwable is SupabaseException && throwable.isMissingRpcFunction) {
@@ -227,6 +260,7 @@ class SupabaseRepository(
             id = orderId,
             code = "UL-" + orderId.replace("-", "").take(8).uppercase(),
             email = order.customerEmail,
+            pricing = pricing,
         )
     }
 

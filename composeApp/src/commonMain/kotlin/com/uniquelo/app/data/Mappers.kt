@@ -169,6 +169,7 @@ internal fun OrderItemRecordDto.toDomain() = OrderItemDetail(
     size = size,
     quantity = quantity,
     priceCents = priceCents,
+    lineTotalCents = lineTotalCents,
 )
 
 internal fun OrderDetailsResponseDto.toDomain() = OrderDetails(

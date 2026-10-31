@@ -35,5 +35,6 @@ data class OrderItemDetail(
     val size: String,
     val quantity: Int,
     val priceCents: Int,
+    val lineTotalCents: Int? = null,
 )
 

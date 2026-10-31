@@ -161,6 +161,77 @@ data class MotifDto(
 )
 
 @Serializable
+data class QuoteItemPayload(
+    @SerialName("variant_sku") val variantSku: String,
+    val quantity: Int,
+)
+
+@Serializable
+data class QuoteOrderPayload(
+    @SerialName("p_items") val items: List<QuoteItemPayload>,
+    @SerialName("p_coupon_code") val couponCode: String? = null,
+    @SerialName("p_customer_email") val customerEmail: String? = null,
+    @SerialName("p_payment_method") val paymentMethod: String = "prepaid",
+)
+
+@Serializable
+data class QuoteLine(
+    val sku: String,
+    val size: String = "",
+    val color: String = "",
+    val quantity: Int = 1,
+    @SerialName("product_slug") val productSlug: String = "",
+    @SerialName("stock_available") val stockAvailable: Int = 0,
+    @SerialName("compare_at_cents") val compareAtCents: Int? = null,
+    @SerialName("unit_price_cents") val unitPriceCents: Int = 0,
+    @SerialName("line_total_cents") val lineTotalCents: Int = 0,
+)
+
+@Serializable
+data class CouponResult(
+    val code: String = "",
+    val error: String? = null,
+    val description: String? = null,
+    @SerialName("value_cents") val valueCents: Int? = null,
+    @SerialName("discount_type") val discountType: String? = null,
+    @SerialName("discount_value") val discountValue: Int? = null,
+    @SerialName("min_subtotal_cents") val minSubtotalCents: Int? = null,
+) {
+    val isValid: Boolean get() = error.isNullOrBlank()
+}
+
+@Serializable
+data class CouponOffer(
+    val code: String = "",
+    val description: String = "",
+    @SerialName("value_cents") val valueCents: Int = 0,
+    @SerialName("discount_type") val discountType: String = "",
+    @SerialName("discount_value") val discountValue: Int = 0,
+    @SerialName("min_subtotal_cents") val minSubtotalCents: Int = 0,
+)
+
+@Serializable
+data class QuoteResponse(
+    val lines: List<QuoteLine> = emptyList(),
+    val units: Int = 0,
+    val coupon: CouponResult? = null,
+    @SerialName("quoted_at") val quotedAt: String? = null,
+    @SerialName("best_coupon") val bestCoupon: CouponOffer? = null,
+    @SerialName("total_cents") val totalCents: Int = 0,
+    @SerialName("cod_fee_cents") val codFeeCents: Int = 0,
+    @SerialName("cod_max_units") val codMaxUnits: Int = 10,
+    @SerialName("savings_cents") val savingsCents: Int = 0,
+    @SerialName("discount_cents") val discountCents: Int = 0,
+    @SerialName("payment_method") val paymentMethod: String = "prepaid",
+    @SerialName("shipping_cents") val shippingCents: Int = 0,
+    @SerialName("subtotal_cents") val subtotalCents: Int = 0,
+    @SerialName("flat_rate_cents") val flatRateCents: Int = 0,
+    @SerialName("available_offers") val availableOffers: List<CouponOffer> = emptyList(),
+    @SerialName("identity_checked") val identityChecked: Boolean = false,
+    @SerialName("free_shipping_threshold_cents") val freeShippingThresholdCents: Int = 0,
+)
+
+@Serializable
 data class OrderInsert(
     val id: String,
     @SerialName("customer_name") val customerName: String,
@@ -171,6 +242,7 @@ data class OrderInsert(
     @SerialName("shipping_cents") val shippingCents: Int,
     @SerialName("total_cents") val totalCents: Int,
     @SerialName("shipping_address") val shippingAddress: Map<String, String>,
+    @SerialName("coupon_code") val couponCode: String? = null,
 )
 
 @Serializable
@@ -226,6 +298,7 @@ data class OrderItemRecordDto(
     val size: String = "",
     val quantity: Int = 1,
     @SerialName("price_cents") val priceCents: Int = 0,
+    @SerialName("line_total_cents") val lineTotalCents: Int? = null,
 )
 
 @Serializable
