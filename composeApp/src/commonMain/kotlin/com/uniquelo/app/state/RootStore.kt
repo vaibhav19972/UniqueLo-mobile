@@ -18,6 +18,7 @@ class RootStore(
     val catalog: CatalogStore,
     val bag: BagStore,
     val checkout: CheckoutStore,
+    val quote: QuoteStore,
     val newsletter: NewsletterStore,
     val router: Router,
     val theme: ThemeStore,
@@ -27,12 +28,16 @@ class RootStore(
     private val scope: CoroutineScope,
 ) {
     init {
+        bag.onLinesChanged = { lines ->
+            quote.onBagChanged(lines)
+        }
         // Wire bag rehydration BEFORE serving the cache: constructor-time
         // snapshots must reach the bag journal hook.
         catalog.onCatalogUpdated = { snapshot, fromLive ->
             bag.validateAgainst(snapshot, fromLive)
         }
         catalog.warmFromCache()
+        quote.onBagChanged(bag.lines)
     }
 
     val bagCount: Int get() = bag.bagCount
@@ -91,13 +96,17 @@ class RootStore(
 
     fun submitOrder(form: CheckoutForm) {
         val lines = bag.takeForOrder()
-        val totalCents = bag.subtotalCents
+        val currentQuote = (quote.state as? QuoteState.Ready)?.quote
+        val hasCouponError = currentQuote?.coupon?.error != null
+        val effectiveCoupon = if (hasCouponError) null else form.couponCode?.trim()?.ifBlank { null }
+        val effectiveForm = form.copy(couponCode = effectiveCoupon)
         val itemCount = lines.sumOf { it.quantity }
         checkout.submitOrder(
-            form = form,
+            form = effectiveForm,
             lines = lines,
             onOrderCommitted = { order ->
                 bag.onOrderCommitted()
+                val totalCents = order.pricing?.totalCents ?: 0
                 orders.recordOrder(order, totalCents, itemCount)
             },
         )

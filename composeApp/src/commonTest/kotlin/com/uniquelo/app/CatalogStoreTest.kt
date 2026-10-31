@@ -118,6 +118,7 @@ internal fun rootForTest(
     themeStorage: ThemePersistence? = null,
     wishlistStorage: WishlistPersistence? = null,
     ordersStorage: OrdersPersistence? = null,
+    quoteDebounceMs: Long = 0L,
 ): RootStore = AppGraph.createStore(
     scope = unconfinedScope,
     repository = repository,
@@ -126,4 +127,5 @@ internal fun rootForTest(
     themeStorage = themeStorage,
     wishlistStorage = wishlistStorage,
     ordersStorage = ordersStorage,
+    quoteDebounceMs = quoteDebounceMs,
 )

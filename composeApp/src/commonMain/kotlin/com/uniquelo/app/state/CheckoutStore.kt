@@ -27,6 +27,7 @@ sealed interface OrderState {
 class CheckoutStore(
     private val repository: UniqueLoRepository,
     private val scope: CoroutineScope,
+    val quote: QuoteStore? = null,
 ) {
     var checkoutOpen by mutableStateOf(false)
         private set

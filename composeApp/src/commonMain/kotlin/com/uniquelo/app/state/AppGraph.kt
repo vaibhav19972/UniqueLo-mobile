@@ -34,12 +34,16 @@ object AppGraph {
         themeStorage: ThemePersistence? = defaultThemePersistence(),
         wishlistStorage: WishlistPersistence? = defaultWishlistPersistence(),
         ordersStorage: OrdersPersistence? = defaultOrdersPersistence(),
+        quoteDebounceMs: Long = 300L,
     ): RootStore {
         val catalogStore = CatalogStore(repository = repository, scope = scope, cache = cache)
+        val quoteStore = QuoteStore(repository = repository, scope = scope, debounceMs = quoteDebounceMs)
+        val checkoutStore = CheckoutStore(repository = repository, scope = scope, quote = quoteStore)
         return RootStore(
             catalog = catalogStore,
             bag = BagStore(bagStorage = bagStorage),
-            checkout = CheckoutStore(repository = repository, scope = scope),
+            checkout = checkoutStore,
+            quote = quoteStore,
             newsletter = NewsletterStore(repository = repository, scope = scope),
             router = Router(),
             theme = ThemeStore(themeStorage),

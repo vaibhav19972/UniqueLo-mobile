@@ -28,6 +28,8 @@ class BagStore(
 ) {
     val lines = mutableStateListOf<CartLine>()
 
+    var onLinesChanged: ((List<CartLine>) -> Unit)? = null
+
     private var pendingSavedLines: List<SavedLine> = bagStorage?.load().orEmpty()
 
     val bagCount: Int get() = lines.sumOf { it.quantity }
@@ -92,6 +94,7 @@ class BagStore(
             .filterNot { it.sku in visibleSkus }
             .distinctBy { it.sku }
         bagStorage?.save(visible + carried)
+        onLinesChanged?.invoke(lines.toList())
     }
 
     fun add(product: Product, variant: Variant) {
