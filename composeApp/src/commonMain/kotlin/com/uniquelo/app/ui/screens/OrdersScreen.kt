@@ -297,11 +297,19 @@ private fun RecentOrderRow(
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                 color = Palette.Ink,
             )
-            Text(
-                text = formatCents(summary.totalCents),
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = Palette.Rust,
-            )
+            if (summary.totalCents > 0) {
+                Text(
+                    text = formatCents(summary.totalCents),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Palette.Rust,
+                )
+            } else {
+                Text(
+                    text = "Amount confirmed by email",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.Muted,
+                )
+            }
         }
         Spacer(Modifier.height(6.dp))
         Row(
@@ -402,7 +410,7 @@ private fun OrderDetailsCard(
                     )
                 }
                 Text(
-                    text = formatCents(item.priceCents * item.quantity),
+                    text = formatCents(item.lineTotalCents ?: (item.priceCents * item.quantity)),
                     style = MaterialTheme.typography.bodyLarge,
                     color = Palette.Ink,
                 )

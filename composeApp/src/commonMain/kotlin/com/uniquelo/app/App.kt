@@ -135,6 +135,7 @@ private fun DestinationHost(
             CheckoutScreen(
                 checkout = store.checkout,
                 bag = bag,
+                quote = store.quote,
                 onSubmit = store::submitOrder,
                 onBack = { store.closeCheckout() },
                 onFinish = { store.finishOrder() },
@@ -203,6 +204,7 @@ private fun DestinationHost(
 
                         Destination.Bag -> BagScreen(
                             bag = bag,
+                            quote = store.quote,
                             onCheckout = { store.requestCheckout() },
                             onBrowse = { store.selectTab(Destination.Discover) },
                         )

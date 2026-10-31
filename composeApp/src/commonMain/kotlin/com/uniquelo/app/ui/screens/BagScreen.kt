@@ -34,10 +34,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.uniquelo.app.model.CartLine
 import com.uniquelo.app.model.formatCents
 import com.uniquelo.app.state.BagStore
+import com.uniquelo.app.state.QuoteState
+import com.uniquelo.app.state.QuoteStore
 import com.uniquelo.app.ui.components.ProductVisual
 import com.uniquelo.app.ui.components.UiIcon
 import com.uniquelo.app.ui.theme.Palette
@@ -45,6 +48,7 @@ import com.uniquelo.app.ui.theme.Palette
 @Composable
 fun BagScreen(
     bag: BagStore,
+    quote: QuoteStore? = null,
     onCheckout: () -> Unit,
     onBrowse: () -> Unit,
 ) {
@@ -92,7 +96,8 @@ fun BagScreen(
         item {
             Spacer(Modifier.height(14.dp))
             SummaryCard(
-                subtotalCents = bag.subtotalCents,
+                bag = bag,
+                quote = quote,
                 onCheckout = onCheckout,
             )
             Spacer(Modifier.height(18.dp))
@@ -255,9 +260,12 @@ private fun StepperButton(
 
 @Composable
 private fun SummaryCard(
-    subtotalCents: Int,
+    bag: BagStore,
+    quote: QuoteStore?,
     onCheckout: () -> Unit,
 ) {
+    val quoteState = quote?.state ?: QuoteState.Idle
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -266,29 +274,111 @@ private fun SummaryCard(
             .background(Palette.Paper)
             .padding(16.dp),
     ) {
-        SummaryRow("Subtotal", formatCents(subtotalCents))
-        Spacer(Modifier.height(8.dp))
-        SummaryRow("Shipping", "Included")
-        Spacer(Modifier.height(8.dp))
-        SummaryRow("Tax", "Included in the atelier price")
-        Spacer(Modifier.height(14.dp))
-        HorizontalDivider(color = Palette.Line)
-        Spacer(Modifier.height(14.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "Total",
-                style = MaterialTheme.typography.titleMedium,
-                color = Palette.Ink,
-            )
-            Text(
-                text = formatCents(subtotalCents),
-                style = MaterialTheme.typography.titleMedium,
-                color = Palette.Ink,
-            )
+        when (quoteState) {
+            is QuoteState.Ready -> {
+                val q = quoteState.quote
+                SummaryRow("Subtotal", formatCents(q.subtotalCents))
+                if (q.discountCents > 0) {
+                    Spacer(Modifier.height(8.dp))
+                    SummaryRow("Discount", "- ${formatCents(q.discountCents)}", valueColor = Palette.Rust)
+                }
+                Spacer(Modifier.height(8.dp))
+                val shippingLabel = if (q.shippingCents == 0 && q.subtotalCents > 0) "Free" else formatCents(q.shippingCents)
+                SummaryRow("Shipping", shippingLabel)
+
+                if (q.shippingCents > 0 && q.freeShippingThresholdCents > q.subtotalCents) {
+                    val remaining = q.freeShippingThresholdCents - q.subtotalCents
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "${formatCents(remaining)} away from free delivery",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Palette.Muted,
+                    )
+                }
+
+                if (q.paymentMethod == "cod" && q.codFeeCents > 0) {
+                    Spacer(Modifier.height(8.dp))
+                    SummaryRow("COD fee", formatCents(q.codFeeCents))
+                }
+
+                Spacer(Modifier.height(8.dp))
+                SummaryRow("Tax", "Included in the atelier price")
+                Spacer(Modifier.height(14.dp))
+                HorizontalDivider(color = Palette.Line)
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Total",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Palette.Ink,
+                    )
+                    Text(
+                        text = formatCents(q.totalCents),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Palette.Ink,
+                    )
+                }
+            }
+            is QuoteState.Loading -> {
+                SummaryRow("Subtotal", formatCents(bag.subtotalCents))
+                Spacer(Modifier.height(8.dp))
+                SummaryRow("Shipping", "Calculating…")
+                Spacer(Modifier.height(8.dp))
+                SummaryRow("Tax", "Included in the atelier price")
+                Spacer(Modifier.height(14.dp))
+                HorizontalDivider(color = Palette.Line)
+                Spacer(Modifier.height(14.dp))
+                SummaryRow("Total", "Calculating…")
+            }
+            is QuoteState.Failed -> {
+                SummaryRow("Subtotal", formatCents(bag.subtotalCents))
+                Spacer(Modifier.height(8.dp))
+                SummaryRow("Shipping", "Calculated at checkout")
+                Spacer(Modifier.height(8.dp))
+                SummaryRow("Tax", "Included in the atelier price")
+                Spacer(Modifier.height(14.dp))
+                HorizontalDivider(color = Palette.Line)
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Total",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Palette.Ink,
+                    )
+                    Text(
+                        text = "Pricing unavailable",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Palette.Rust,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Pricing unavailable — retry",
+                    style = MaterialTheme.typography.labelSmall.copy(color = Palette.Rust),
+                    modifier = Modifier
+                        .clickable { quote?.retry() }
+                        .padding(vertical = 4.dp),
+                )
+            }
+            QuoteState.Idle -> {
+                SummaryRow("Subtotal", formatCents(bag.subtotalCents))
+                Spacer(Modifier.height(8.dp))
+                SummaryRow("Shipping", "Calculated at checkout")
+                Spacer(Modifier.height(8.dp))
+                SummaryRow("Tax", "Included in the atelier price")
+                Spacer(Modifier.height(14.dp))
+                HorizontalDivider(color = Palette.Line)
+                Spacer(Modifier.height(14.dp))
+                SummaryRow("Total", "Calculated at checkout")
+            }
         }
         Spacer(Modifier.height(18.dp))
         Box(
@@ -319,7 +409,11 @@ private fun SummaryCard(
 }
 
 @Composable
-private fun SummaryRow(label: String, value: String) {
+private fun SummaryRow(
+    label: String,
+    value: String,
+    valueColor: Color = Palette.Ink,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -332,7 +426,7 @@ private fun SummaryRow(label: String, value: String) {
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
-            color = Palette.Ink,
+            color = valueColor,
         )
     }
 }

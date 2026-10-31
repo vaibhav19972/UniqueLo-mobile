@@ -41,6 +41,10 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -52,6 +56,8 @@ import com.uniquelo.app.model.formatCents
 import com.uniquelo.app.state.BagStore
 import com.uniquelo.app.state.CheckoutStore
 import com.uniquelo.app.state.OrderState
+import com.uniquelo.app.state.QuoteState
+import com.uniquelo.app.state.QuoteStore
 import com.uniquelo.app.ui.components.UiIcon
 import com.uniquelo.app.ui.theme.Palette
 
@@ -59,6 +65,7 @@ import com.uniquelo.app.ui.theme.Palette
 fun CheckoutScreen(
     checkout: CheckoutStore,
     bag: BagStore,
+    quote: QuoteStore? = checkout.quote,
     onSubmit: (CheckoutForm) -> Unit,
     onBack: () -> Unit,
     onFinish: () -> Unit,
@@ -68,6 +75,7 @@ fun CheckoutScreen(
         else -> CheckoutFormScreen(
             checkout = checkout,
             bag = bag,
+            quote = quote,
             session = checkout.checkoutSession,
             onSubmit = onSubmit,
             onBack = onBack,
@@ -79,6 +87,7 @@ fun CheckoutScreen(
 private fun CheckoutFormScreen(
     checkout: CheckoutStore,
     bag: BagStore,
+    quote: QuoteStore?,
     session: Int,
     onSubmit: (CheckoutForm) -> Unit,
     onBack: () -> Unit,
@@ -90,12 +99,17 @@ private fun CheckoutFormScreen(
     var email by rememberSaveable(session) { mutableStateOf("") }
     var phone by rememberSaveable(session) { mutableStateOf("") }
     var paymentMethod by rememberSaveable(session) { mutableStateOf("cod") }
+    var couponInput by rememberSaveable(session) { mutableStateOf(quote?.couponCode.orEmpty()) }
     var address by rememberSaveable(session) { mutableStateOf("") }
     var city by rememberSaveable(session) { mutableStateOf("") }
     var postal by rememberSaveable(session) { mutableStateOf("") }
     var country by rememberSaveable(session) { mutableStateOf("India") }
     var attempted by rememberSaveable(session) { mutableStateOf(false) }
     var formError by rememberSaveable(session) { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(paymentMethod) {
+        quote?.selectPaymentMethod(paymentMethod)
+    }
 
     val submitting = checkout.orderState is OrderState.Submitting
     val emailRegex = remember { Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$") }
@@ -141,7 +155,7 @@ private fun CheckoutFormScreen(
                 .padding(horizontal = 20.dp)
                 .padding(top = 8.dp, bottom = 24.dp),
         ) {
-            OrderSummary(bag = bag)
+            OrderSummary(bag = bag, quote = quote)
 
             Spacer(Modifier.height(24.dp))
             Text(
@@ -254,7 +268,10 @@ private fun CheckoutFormScreen(
                         .clip(RoundedCornerShape(4.dp))
                         .background(if (paymentMethod == "cod") Palette.Ink else Palette.Paper)
                         .border(1.dp, if (paymentMethod == "cod") Palette.Ink else Palette.Line, RoundedCornerShape(4.dp))
-                        .clickable(enabled = !submitting) { paymentMethod = "cod" }
+                        .clickable(enabled = !submitting) {
+                            paymentMethod = "cod"
+                            quote?.selectPaymentMethod("cod")
+                        }
                         .padding(vertical = 12.dp, horizontal = 8.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -270,7 +287,10 @@ private fun CheckoutFormScreen(
                         .clip(RoundedCornerShape(4.dp))
                         .background(if (paymentMethod == "upi") Palette.Ink else Palette.Paper)
                         .border(1.dp, if (paymentMethod == "upi") Palette.Ink else Palette.Line, RoundedCornerShape(4.dp))
-                        .clickable(enabled = !submitting) { paymentMethod = "upi" }
+                        .clickable(enabled = !submitting) {
+                            paymentMethod = "upi"
+                            quote?.selectPaymentMethod("upi")
+                        }
                         .padding(vertical = 12.dp, horizontal = 8.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -289,6 +309,80 @@ private fun CheckoutFormScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = Palette.Muted,
             )
+
+            Spacer(Modifier.height(24.dp))
+            Text(
+                text = "COUPON / PROMOTIONS",
+                style = MaterialTheme.typography.labelSmall,
+                color = Palette.Muted,
+            )
+            Spacer(Modifier.height(8.dp))
+            LabelledField(
+                label = "Coupon code",
+                value = couponInput,
+                onValueChange = {
+                    couponInput = it
+                    quote?.applyCoupon(it)
+                },
+                placeholder = "Enter code",
+                enabled = !submitting,
+            )
+
+            val currentQ = (quote?.state as? QuoteState.Ready)?.quote
+            val couponError = currentQ?.coupon?.error
+            if (!couponError.isNullOrBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = couponError,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.Rust,
+                )
+            }
+
+            val offers = currentQ?.availableOffers.orEmpty()
+            if (offers.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "AVAILABLE OFFERS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Palette.Muted,
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    offers.forEach { offer ->
+                        val label = if (offer.discountType == "free_shipping") {
+                            "Free delivery"
+                        } else if (offer.valueCents > 0) {
+                            "Save ${formatCents(offer.valueCents)}"
+                        } else {
+                            offer.description.ifBlank { offer.code }
+                        }
+                        val isSelected = couponInput.equals(offer.code, ignoreCase = true)
+                        Box(
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .border(1.dp, if (isSelected) Palette.Rust else Palette.ControlLine, RoundedCornerShape(2.dp))
+                                .background(Palette.Paper)
+                                .clickable(enabled = !submitting) {
+                                    couponInput = offer.code
+                                    quote?.applyCoupon(offer.code)
+                                }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = "${offer.code} · $label",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                color = if (isSelected) Palette.Rust else Palette.Ink,
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         Column(
@@ -297,6 +391,7 @@ private fun CheckoutFormScreen(
                 .background(Palette.Paper)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
         ) {
+            val quoteState = quote?.state ?: QuoteState.Idle
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -308,7 +403,12 @@ private fun CheckoutFormScreen(
                     color = Palette.Muted,
                 )
                 Text(
-                    text = formatCents(bag.subtotalCents),
+                    text = when (quoteState) {
+                        is QuoteState.Ready -> formatCents(quoteState.quote.totalCents)
+                        is QuoteState.Loading -> "…"
+                        is QuoteState.Failed -> "Pricing unavailable"
+                        QuoteState.Idle -> "—"
+                    },
                     style = MaterialTheme.typography.titleMedium,
                     color = Palette.Ink,
                 )
@@ -334,18 +434,27 @@ private fun CheckoutFormScreen(
                             city.isBlank() -> formError = "Please add a city."
                             postal.isBlank() -> formError = "Please add a PIN code."
                             country.isBlank() -> formError = "Please add a country."
-                            else -> onSubmit(
-                                CheckoutForm(
-                                    name = name.trim(),
-                                    email = email.trim(),
-                                    addressLine = address.trim(),
-                                    city = city.trim(),
-                                    postalCode = postal.trim(),
-                                    country = country.trim(),
-                                    phone = phoneDigits.ifBlank { null },
-                                    paymentMethod = paymentMethod,
-                                ),
-                            )
+                            else -> {
+                                val currentQ = (quote?.state as? QuoteState.Ready)?.quote
+                                val effectiveCoupon = if (currentQ?.coupon?.error != null) {
+                                    null
+                                } else {
+                                    couponInput.trim().ifBlank { null }
+                                }
+                                onSubmit(
+                                    CheckoutForm(
+                                        name = name.trim(),
+                                        email = email.trim(),
+                                        addressLine = address.trim(),
+                                        city = city.trim(),
+                                        postalCode = postal.trim(),
+                                        country = country.trim(),
+                                        phone = phoneDigits.ifBlank { null },
+                                        paymentMethod = paymentMethod,
+                                        couponCode = effectiveCoupon,
+                                    ),
+                                )
+                            }
                         }
                     },
                 contentAlignment = Alignment.Center,
@@ -365,8 +474,12 @@ private fun CheckoutFormScreen(
                         )
                     }
                 } else {
+                    val buttonTotal = when (quoteState) {
+                        is QuoteState.Ready -> " · ${formatCents(quoteState.quote.totalCents)}"
+                        else -> ""
+                    }
                     Text(
-                        text = "PLACE RESERVATION · ${formatCents(bag.subtotalCents)}",
+                        text = "PLACE RESERVATION$buttonTotal",
                         style = MaterialTheme.typography.labelLarge,
                         color = Palette.OnAccent,
                     )
@@ -377,7 +490,10 @@ private fun CheckoutFormScreen(
 }
 
 @Composable
-private fun OrderSummary(bag: BagStore) {
+private fun OrderSummary(bag: BagStore, quote: QuoteStore?) {
+    val quoteState = quote?.state ?: QuoteState.Idle
+    val currentQuote = (quoteState as? QuoteState.Ready)?.quote
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -393,6 +509,8 @@ private fun OrderSummary(bag: BagStore) {
         )
         Spacer(Modifier.height(12.dp))
         bag.lines.forEach { line ->
+            val serverLine = currentQuote?.lines?.firstOrNull { it.sku == line.variant.sku }
+            val lineTotal = serverLine?.lineTotalCents ?: line.lineTotalCents
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -416,7 +534,7 @@ private fun OrderSummary(bag: BagStore) {
                 }
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    text = formatCents(line.lineTotalCents),
+                    text = formatCents(lineTotal),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.Ink,
                 )
@@ -425,37 +543,135 @@ private fun OrderSummary(bag: BagStore) {
         Spacer(Modifier.height(10.dp))
         HorizontalDivider(color = Palette.Line)
         Spacer(Modifier.height(10.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = "Shipping",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Palette.Muted,
-            )
-            Text(
-                text = "Included",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Palette.Ink,
-            )
+
+        when (quoteState) {
+            is QuoteState.Ready -> {
+                val q = quoteState.quote
+                // Subtotal
+                SummaryRow("Subtotal", formatCents(q.subtotalCents))
+
+                // Discount (only when > 0)
+                if (q.discountCents > 0) {
+                    Spacer(Modifier.height(6.dp))
+                    SummaryRow("Discount", "- ${formatCents(q.discountCents)}", valueColor = Palette.Rust)
+                }
+
+                // Shipping (or "Free" when 0 and subtotal > 0)
+                Spacer(Modifier.height(6.dp))
+                val shippingLabel = if (q.shippingCents == 0 && q.subtotalCents > 0) "Free" else formatCents(q.shippingCents)
+                SummaryRow("Shipping", shippingLabel)
+
+                // Free-delivery progress hint against free_shipping_threshold_cents
+                if (q.shippingCents > 0 && q.freeShippingThresholdCents > q.subtotalCents) {
+                    val remaining = q.freeShippingThresholdCents - q.subtotalCents
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "${formatCents(remaining)} away from free delivery",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Palette.Muted,
+                    )
+                }
+
+                // COD fee (only when payment_method == "cod" and > 0)
+                if (q.paymentMethod == "cod" && q.codFeeCents > 0) {
+                    Spacer(Modifier.height(6.dp))
+                    SummaryRow("COD fee", formatCents(q.codFeeCents))
+                }
+
+                Spacer(Modifier.height(10.dp))
+                HorizontalDivider(color = Palette.Line)
+                Spacer(Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = "Total",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Palette.Ink,
+                    )
+                    Text(
+                        text = formatCents(q.totalCents),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Palette.Ink,
+                    )
+                }
+            }
+            is QuoteState.Loading -> {
+                SummaryRow("Subtotal", formatCents(bag.subtotalCents))
+                Spacer(Modifier.height(6.dp))
+                SummaryRow("Shipping", "Calculating…")
+                Spacer(Modifier.height(10.dp))
+                HorizontalDivider(color = Palette.Line)
+                Spacer(Modifier.height(10.dp))
+                SummaryRow("Total", "Calculating…")
+            }
+            is QuoteState.Failed -> {
+                SummaryRow("Subtotal", formatCents(bag.subtotalCents))
+                Spacer(Modifier.height(6.dp))
+                SummaryRow("Shipping", "Calculated at checkout")
+                Spacer(Modifier.height(10.dp))
+                HorizontalDivider(color = Palette.Line)
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Total",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Palette.Ink,
+                    )
+                    Text(
+                        text = "Pricing unavailable",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Palette.Rust,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Pricing unavailable — retry",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Palette.Rust),
+                    modifier = Modifier
+                        .clickable { quote?.retry() }
+                        .padding(vertical = 4.dp),
+                )
+            }
+            QuoteState.Idle -> {
+                SummaryRow("Subtotal", formatCents(bag.subtotalCents))
+                Spacer(Modifier.height(6.dp))
+                SummaryRow("Shipping", "Calculated at checkout")
+                Spacer(Modifier.height(10.dp))
+                HorizontalDivider(color = Palette.Line)
+                Spacer(Modifier.height(10.dp))
+                SummaryRow("Total", "Calculated at checkout")
+            }
         }
-        Spacer(Modifier.height(6.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = "Total",
-                style = MaterialTheme.typography.titleMedium,
-                color = Palette.Ink,
-            )
-            Text(
-                text = formatCents(bag.subtotalCents),
-                style = MaterialTheme.typography.titleMedium,
-                color = Palette.Ink,
-            )
-        }
+    }
+}
+
+@Composable
+private fun SummaryRow(
+    label: String,
+    value: String,
+    valueColor: androidx.compose.ui.graphics.Color = Palette.Ink,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Palette.Muted,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = valueColor,
+        )
     }
 }
 
@@ -570,6 +786,20 @@ private fun ConfirmationScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 color = Palette.Ink,
             )
+            Spacer(Modifier.height(6.dp))
+            if (order.pricing != null) {
+                Text(
+                    text = "TOTAL ${formatCents(order.pricing.totalCents)}",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Palette.Rust,
+                )
+            } else {
+                Text(
+                    text = "Amount confirmed by email",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Palette.Muted,
+                )
+            }
             Spacer(Modifier.height(6.dp))
             Text(
                 text = "Keep this code for your records.",
