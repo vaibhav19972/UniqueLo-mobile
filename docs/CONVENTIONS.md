@@ -122,3 +122,17 @@ endpoints. Template for snapshot-driven state (cache vs live):
 - **Fonts are licensed assets.** Satoshi is self-hosted under the ITF Free Font
   License (`docs/fonts/SATOSHI-FFL.txt`); a font swap is a licence review, not
   a silent asset replacement.
+
+## Rule 9: No client-side price arithmetic (D-21)
+
+- **The server is the only money authority.** Never compute order totals, shipping,
+  discounts, or COD fees by client-side arithmetic. All displayed totals and
+  persisted order history totals come authoritatively from `rpc/quote_order` or
+  the parsed response of `rpc/place_order`.
+- **Quote failure never produces a number.** If a quote fails (e.g. offline,
+  network error, server error), show an explicit "Pricing unavailable — retry"
+  affordance. Never fall back to client addition (`bag.subtotalCents`).
+- **Offline displays subtotal only.** In offline mode, the bag displays item subtotal
+  with shipping marked as "calculated at checkout" and no fabricated total.
+- **Coupon hygiene:** A coupon that returns an error object from `quote_order` must
+  never be submitted to `place_order` (send `null`).

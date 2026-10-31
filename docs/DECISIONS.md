@@ -31,6 +31,7 @@
 | D-18 | Accepted | **Local-only wishlist**: device-local slug set persisted to disk (`wishlist.json`), no auth, no backend | — |
 | D-19 | Accepted | **Payments are out of scope for MVP**: `place_order` reserves orders with no payment; Bag/Checkout disclaimer is blocking release copy; D-6/D-7 stay deferred | D-6, D-7 |
 | D-20 | Accepted | **Reviews submitted unauthenticated**: public `with check (true)` insert policy; server defaults `verified = true`; client-side validation only | OA-6 |
+| D-21 | Accepted | **Server is the only money authority — no client-side price arithmetic**: `quote_order` on every bag change, `place_order` response parsed for authoritative pricing | D-6, A14 |
 
 ---
 
@@ -424,3 +425,35 @@ which survived the D-15 catalogue lockdown.
 2. Accepted as-is for the MVP storefront.
 3. Revisit review authorization, moderation, and verified-buyer checks when Supabase
    Auth and an admin predicate (OA-6) land.
+
+---
+
+## D-21 — Server is the only money authority — no client-side price arithmetic (Accepted, Phase 4)
+
+**Decision.** The mobile client becomes a strict customer of the backend's pricing engine.
+All pricing, discounts, carriage fees, and totals are computed on the server.
+Client-side arithmetic (`bag.subtotalCents = lines.sumOf { ... }`) is removed from all
+pricing displays and from `RootStore.submitOrder`.
+
+**Why.**
+- Cross-client price divergence: mobile was displaying `subtotalCents` as the amount due,
+  omitting standard ₹99 shipping, free-shipping thresholds, coupons, and COD fees.
+  A ₹899 tee was ₹998 on web and ₹899 on mobile.
+- Order history recorded client-invented subtotals rather than authoritative server totals.
+- The server already possesses the authoritative pricing engine via `rpc/quote_order`
+  and `rpc/place_order` (which already returned the computed pricing object that mobile
+  was discarding).
+
+**Implementation & Consequences.**
+1. Mobile calls `rpc/quote_order` on bag changes (add, remove, quantity stepper), coupon
+   updates, and payment method changes with ~300ms debounce.
+2. In-flight quote jobs are cancelled when the bag changes; responses arriving for older
+   bag states are dropped.
+3. `rpc/place_order` response body is parsed into `QuoteResponse` and attached to `PlacedOrder.pricing`.
+4. `RootStore.submitOrder` passes the server's authoritative `total_cents` into `OrdersStore.recordOrder`.
+5. When `quote_order` fails (e.g., offline or network error), the UI displays "Pricing unavailable — retry"
+   and never falls back to client arithmetic. In offline mode, the bag displays items' subtotal with
+   shipping marked "calculated at checkout" and no fabricated total.
+6. The checkout form maps `"upi"` to `"prepaid"` explicitly on both RPCs.
+7. `OrderInsert` adds `coupon_code` (sent as `null` when empty or when the quote's coupon carries an error).
+8. Delivers the intent of deferred decision D-6 (server-trusted pricing).
